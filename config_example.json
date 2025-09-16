@@ -1,0 +1,27 @@
+{
+  "dimensions": {
+    "image": {
+      "width": 1024,
+      "height": 1024
+    }
+  },
+  "generation": {
+    "seed": 2,
+    "image": {
+      "steps": 50,
+      "base_fractal": 0.8,
+      "guidance": 6
+    }
+  },
+  "prompts": {
+    "image_positive": "hand illustrated fantasy art, lone small traveler walking through towering stone archways, path leading to a dark brooding castle, dramatic scale, moody atmosphere, fine linework, ink and watercolor look, detailed storybook style, atmospheric perspective, high detail, evocative illustration",
+    "image_negative": "photorealistic, hyperrealism, 3d render, low detail, flat colors, bright cheerful lighting, modern city, sci-fi, cartoonish, blurry, distorted, messy lines, overexposed, text, watermark, logo, signature"
+  },
+  "paths": {
+    "result_dir": "result",
+    "temp_dir": "temp",
+    "outputs": {
+      "01": "01_initial_image.png"
+    }
+  }
+}

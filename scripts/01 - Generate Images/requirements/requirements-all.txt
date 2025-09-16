@@ -1,0 +1,18 @@
+# Core AI libraries (Flux compatible)
+diffusers==0.30.0
+transformers==4.44.0
+huggingface_hub==0.25.0
+accelerate==0.34.0
+safetensors>=0.4.2
+sentencepiece>=0.1.99
+protobuf>=3.20.0
+
+# Image processing
+pillow==11.3.0
+
+# Utilities
+numpy<2.0.0
+
+# Code quality tools
+pylint==3.0.3
+autopep8==2.0.4
