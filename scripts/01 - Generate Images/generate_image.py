@@ -99,6 +99,7 @@ def generate_image():
         generator = torch.Generator(device=device).manual_seed(config.generation_seed)
 
         print("Using generation properties of:")
+        print(f"  * Device: {device}")
         print(f"  * Seed: {config.generation_seed}")
         print(f"  * Generation Steps: {config.image_generation_steps}")
         print(f"  * Base Fractal: {config.image_base_fractal}")
@@ -134,7 +135,6 @@ def generate_image():
 
     # Save final image
     image.save(output_path, quality=95)
-    print(f"\nImage saved to: {output_path}")
 
     return output_path
 

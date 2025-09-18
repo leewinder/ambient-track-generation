@@ -35,6 +35,11 @@ class Config:
         except json.JSONDecodeError as exc:
             raise ValueError(f"Invalid JSON in config file: {exc}") from exc
 
+    # --- General properties ---
+    def debug(self) -> bool:
+        """Get debug mode state."""
+        return self._data.get("debug", False)
+
     # --- Image configuration ---
     @property
     def image_width(self) -> int:
@@ -46,12 +51,13 @@ class Config:
         """Get the image height from config."""
         return self._data.get("dimensions", {}).get("image", {}).get("height", 1024)
 
-    # --- Generation configuration ---
+    # --- General generation configuration ---
     @property
     def generation_seed(self) -> int:
         """Get the random seed for generation."""
         return self._data.get("generation", {}).get("seed", int(time.time()))
 
+    # --- Image generation configuration ---
     @property
     def image_generation_steps(self) -> int:
         """Get the number of inference steps for image generation."""
@@ -66,6 +72,22 @@ class Config:
     def image_guidance(self) -> float:
         """Get base guidance value the model should use."""
         return self._data.get("generation", {}).get("image", {}).get("guidance", 6)
+
+    # --- Outpainting generation configuration ---
+    @property
+    def outpaint_generation_steps(self) -> int:
+        """Get the number of inference steps for image generation."""
+        return self._data.get("generation", {}).get("outpaint", {}).get("steps", 50)
+
+    @property
+    def outpaint_guidance(self) -> float:
+        """Get base guidance value the model should use."""
+        return self._data.get("generation", {}).get("outpaint", {}).get("guidance", 6)
+
+    @property
+    def outpaint_feathering(self) -> float:
+        """Get the % of feathering at the edges the model should use."""
+        return self._data.get("generation", {}).get("outpaint", {}).get("feathering", 6)
 
     # --- Prompt access ---
     @property
@@ -89,10 +111,16 @@ class Config:
         """Get the temp output directory path."""
         return self._data.get("paths", {}).get("temp_dir", "temp")
 
+    # --- Output names ---
     @property
     def output_stage_01(self) -> str:
         """Get the output content."""
         return self._data.get("paths", {}).get("outputs", {}).get("01", "01_initial_image.png")
+
+    @property
+    def output_stage_02(self) -> str:
+        """Get the output content."""
+        return self._data.get("paths", {}).get("outputs", {}).get("02", "02_widened_image.png")
 
 
 def load_config(config_path: str = "../../config.json") -> Config:
