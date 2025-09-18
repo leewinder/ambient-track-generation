@@ -12,20 +12,20 @@ from diffusers import StableDiffusionXLInpaintPipeline
 
 
 class Dimensions:
-    """Container for image dimensions used in outpainting process."""
+    """ Container for image dimensions used in outpainting process """
 
     def __init__(self, source_width: int, source_height: int,
                  target_width: int, target_height: int,
-                 working_width: int, working_height: int):
+                 working_width: int, working_height: int) -> None:
         self.source = DimensionPair(source_width, source_height)
         self.target = DimensionPair(target_width, target_height)
         self.working = DimensionPair(working_width, working_height)
 
 
 class DimensionPair:
-    """Container for width and height pair."""
+    """ Container for width and height pair """
 
-    def __init__(self, width: int, height: int):
+    def __init__(self, width: int, height: int) -> None:
         self.width = width
         self.height = height
 
@@ -47,8 +47,8 @@ args = args.parse_common_arguments("Outpaints a given image using Stable Diffusi
 logging.getLogger('diffusers').setLevel(logging.ERROR)
 
 
-def get_device():
-    """Select the best available compute device: MPS (Apple), CUDA (NVIDIA), or CPU fallback."""
+def get_device() -> str:
+    """ Select the best available compute device: MPS (Apple), CUDA (NVIDIA), or CPU fallback """
     if torch.backends.mps.is_available():
         print("Using MPS (Apple Silicon) for acceleration")
         return "mps"
@@ -60,16 +60,7 @@ def get_device():
 
 
 def calculate_target_dimensions(source_width: int, source_height: int) -> Dimensions:
-    """
-    Calculate target and working dimensions for 16:9 aspect ratio outpainting.
-
-    Args:
-        source_width: Original image width
-        source_height: Original image height
-
-    Returns:
-        Dimensions object containing source, target, and working dimensions
-    """
+    """ Calculate target and working dimensions for 16:9 aspect ratio outpainting """
     # For 16:9 aspect ratio: width = height * 16 / 9
     target_width = int(source_height * 16 / 9)  # Keep exact 16:9 ratio (1820)
     target_height = source_height  # Keep height the same
@@ -96,21 +87,7 @@ def calculate_target_dimensions(source_width: int, source_height: int) -> Dimens
 def create_feathered_mask(width: int, height: int, mask_width: int,
                           feather_size: int, mask_x: int = 0,
                           feather_from_left: bool = True) -> Image.Image:
-    """
-    Create a feathered mask for outpainting.
-
-    Args:
-        width: Total image width
-        height: Total image height
-        mask_width: Width of the area to mask (left or right side)
-        feather_size: Size of the feathering in pixels
-        mask_x: X position where the mask should be placed
-        feather_from_left: If True, feathers from left edge (for right side masks)
-                           If False, feathers from right edge (for left side masks)
-
-    Returns:
-        PIL Image with feathered mask (black = keep, white = inpaint)
-    """
+    """ Create a feathered mask for outpainting """
     mask = Image.new("L", (width, height), 0)  # Start with black (keep all)
     mask_area = Image.new("L", (mask_width, height), 255)  # Create a solid white area to inpaint
 
@@ -137,16 +114,7 @@ def create_feathered_mask(width: int, height: int, mask_width: int,
 
 
 def prime_canvas_with_smear(source_image: Image.Image, dimensions: Dimensions) -> Image.Image:
-    """
-    Creates a new canvas and primes it for outpainting by smearing the edges of the source image.
-
-    Args:
-        source_image: The original PIL Image object.
-        dimensions: Dimensions object containing working dimensions.
-
-    Returns:
-        A new PIL Image object with the source image centered and edges smeared.
-    """
+    """ Creates a new canvas and primes it for outpainting by smearing the edges of the source image """
     working_expansion_per_side = (dimensions.working.width - dimensions.source.width) // 2
 
     print("Creating and priming the canvas for outpainting...")
@@ -182,8 +150,8 @@ def save_interim_result(interim_image: Image.Image, name: str) -> None:
         interim_image.save(interim_path)
 
 
-def outpaint_image():
-    """Generates a new out painted image from a pre-created image."""
+def outpaint_image() -> str:
+    """ Generates a new out painted image from a pre-created image """
 
     print("\n\n-------- IDENTIFYING SOURCE IMAGE AND OUTPUT --------")
 
@@ -312,8 +280,8 @@ def outpaint_image():
     return str(final_output_path)
 
 
-def main():
-    """Main entry point."""
+def main() -> None:
+    """ Main entry point """
     try:
         output_path = outpaint_image()
         print(f"\nSuccess! Image out painted: {output_path}")

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Stable Diffusion XL 2-Step Image Generator
-Generates a single image from a text prompt using the SDXL Base + Refiner pipeline.
+Generates a single image from a text prompt using the SDXL Base + Refiner pipeline
 """
 
 import sys
@@ -25,8 +25,8 @@ config = config.load_config()
 args = args.parse_common_arguments("Generates an image using Stable Diffusion XL")
 
 
-def get_device():
-    """Select the best available compute device: MPS (Apple), CUDA (NVIDIA), or CPU fallback."""
+def get_device() -> str:
+    """ Select the best available compute device: MPS (Apple), CUDA (NVIDIA), or CPU fallback """
     if torch.backends.mps.is_available():
         print("Using MPS (Apple Silicon) for acceleration")
         return "mps"
@@ -37,8 +37,8 @@ def get_device():
     return "cpu"
 
 
-def generate_image():
-    """Generate an image using SDXL Base + Refiner pipelines with a 2-step denoising process."""
+def generate_image() -> Path:
+    """ Generate an image using SDXL Base + Refiner pipelines with a 2-step denoising process """
 
     # Ensure output folder exists
     output_path = Path(args.output) / config.result_dir / config.temp_dir / config.output_stage_01
@@ -139,8 +139,8 @@ def generate_image():
     return output_path
 
 
-def main():
-    """Main entry point."""
+def main() -> None:
+    """ Main entry point """
     try:
         output_path = generate_image()
         print(f"\nSuccess! Image generated: {output_path}")
