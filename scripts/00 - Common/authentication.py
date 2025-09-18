@@ -17,7 +17,7 @@ AUTHENTICATION_SCHEMA = {
         "huggingface": {
             "type": "string",
             "minLength": 1,
-            "pattern": "^hf_[a-zA-Z0-9]{34}$"
+            "pattern": "^hf_[a-zA-Z0-9]{30,40}$"
         }
     }
 }

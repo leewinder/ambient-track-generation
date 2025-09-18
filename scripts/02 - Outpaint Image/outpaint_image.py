@@ -36,7 +36,7 @@ sys.path.insert(0, str(common_path))
 
 # fmt: off
 # noqa: E402,E501  # pylint: disable-next=import-error,wrong-import-position,multiple-imports
-import authentication, config, args
+import authentication, config, args, sdxl
 # fmt: on
 
 authentication = authentication.load_authentication()
@@ -45,18 +45,6 @@ args = args.parse_common_arguments("Outpaints a given image using Stable Diffusi
 
 # Suppress the informational warnings from the diffusers library
 logging.getLogger('diffusers').setLevel(logging.ERROR)
-
-
-def get_device() -> str:
-    """ Select the best available compute device: MPS (Apple), CUDA (NVIDIA), or CPU fallback """
-    if torch.backends.mps.is_available():
-        print("Using MPS (Apple Silicon) for acceleration")
-        return "mps"
-    if torch.cuda.is_available():
-        print("Using CUDA for acceleration")
-        return "cuda"
-    print("Using CPU (no GPU acceleration available)")
-    return "cpu"
 
 
 def calculate_target_dimensions(source_width: int, source_height: int) -> Dimensions:
@@ -185,10 +173,8 @@ def outpaint_image() -> str:
     print("\n\n-------- SETTING UP STABLE DIFFUSION INPAINTING PIPELINE --------")
     print("Loading SDXL inpainting pipeline (this will take a while the first time)...")
     # Determine device and preferred precision
-    device = get_device()
-    dtype = torch.bfloat16 if device == "cuda" and torch.cuda.is_bf16_supported() else (
-        torch.float16 if device == "cuda" else torch.float32
-    )
+    device = sdxl.get_device()
+    dtype = sdxl.get_optimal_dtype(device)
 
     pipe = StableDiffusionXLInpaintPipeline.from_pretrained(
         "diffusers/stable-diffusion-xl-1.0-inpainting-0.1",
@@ -199,12 +185,7 @@ def outpaint_image() -> str:
     ).to(device)
 
     # Optimize pipeline for memory and compute efficiency
-    if device == "cuda":
-        if hasattr(pipe, "enable_model_cpu_offload"):
-            pipe.enable_model_cpu_offload()
-
-    if hasattr(pipe, "enable_attention_slicing"):
-        pipe.enable_attention_slicing()
+    sdxl.optimize_pipeline(pipe, device)
 
     print("\n\n-------- OUT PAINTING IMAGE --------")
 
@@ -226,7 +207,7 @@ def outpaint_image() -> str:
 
     # Perform right side inpainting
     with torch.no_grad():
-        generator = torch.Generator(device=device).manual_seed(config.generation_seed)
+        generator = sdxl.create_generator(device, config.generation_seed)
 
         right_result = pipe(
             prompt=config.image_prompt_positive,

@@ -20,10 +20,10 @@ CONFIG_SCHEMA = {
         "prompts": {
             "type": "object",
             "additionalProperties": False,
-            "required": ["image_positive", "image_negative"],
+            "required": ["image_positive"],
             "properties": {
                 "image_positive": {"type": "string", "minLength": 1},
-                "image_negative": {"type": "string", "minLength": 1}
+                "image_negative": {"type": "string", "minLength": 0}
             }
         },
         "dimensions": {
@@ -49,17 +49,17 @@ CONFIG_SCHEMA = {
                     "type": "object",
                     "additionalProperties": False,
                     "properties": {
-                        "steps": {"type": "integer", "minimum": 1, "maximum": 100},
+                        "steps": {"type": "integer", "minimum": 1, "maximum": 200},
                         "base_fractal": {"type": "number", "minimum": 0.1, "maximum": 0.9},
-                        "guidance": {"type": "number", "minimum": 0, "maximum": 20},
+                        "guidance": {"type": "number", "minimum": 0, "maximum": 50},
                     }
                 },
                 "outpaint": {
                     "type": "object",
                     "additionalProperties": False,
                     "properties": {
-                        "steps": {"type": "integer", "minimum": 1, "maximum": 100},
-                        "guidance": {"type": "number", "minimum": 0, "maximum": 20},
+                        "steps": {"type": "integer", "minimum": 1, "maximum": 200},
+                        "guidance": {"type": "number", "minimum": 0, "maximum": 50},
                         "feathering": {"type": "number", "minimum": 0, "maximum": 10}
                     }
                 }

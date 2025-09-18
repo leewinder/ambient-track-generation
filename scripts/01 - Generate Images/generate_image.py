@@ -17,24 +17,12 @@ sys.path.insert(0, str(common_path))
 
 # fmt: off
 # noqa: E402,E501  # pylint: disable-next=import-error,wrong-import-position,multiple-imports
-import authentication, config, args
+import authentication, config, args, sdxl
 # fmt: on
 
 authentication = authentication.load_authentication()
 config = config.load_config()
 args = args.parse_common_arguments("Generates an image using Stable Diffusion XL")
-
-
-def get_device() -> str:
-    """ Select the best available compute device: MPS (Apple), CUDA (NVIDIA), or CPU fallback """
-    if torch.backends.mps.is_available():
-        print("Using MPS (Apple Silicon) for acceleration")
-        return "mps"
-    if torch.cuda.is_available():
-        print("Using CUDA for acceleration")
-        return "cuda"
-    print("Using CPU (no GPU acceleration available)")
-    return "cpu"
 
 
 def generate_image() -> Path:
@@ -47,10 +35,8 @@ def generate_image() -> Path:
     print("\n\n-------- SETTING UP STABLE DIFFUSION XL (Base + Refiner) --------")
 
     # Determine device and preferred precision
-    device = get_device()
-    dtype = torch.bfloat16 if device == "cuda" and torch.cuda.is_bf16_supported() else (
-        torch.float16 if device == "cuda" else torch.float32
-    )
+    device = sdxl.get_device()
+    dtype = sdxl.get_optimal_dtype(device)
 
     # Define the model IDs for base and refiner pipelines
     base_model_id = "stabilityai/stable-diffusion-xl-base-1.0"
@@ -77,16 +63,8 @@ def generate_image() -> Path:
     ).to(device)
 
     # Optimize both pipelines for memory and compute efficiency
-    if device == "cuda":
-        if hasattr(pipe, "enable_model_cpu_offload"):
-            pipe.enable_model_cpu_offload()
-        if hasattr(refiner, "enable_model_cpu_offload"):
-            refiner.enable_model_cpu_offload()
-
-    if hasattr(pipe, "enable_attention_slicing"):
-        pipe.enable_attention_slicing()
-    if hasattr(refiner, "enable_attention_slicing"):
-        refiner.enable_attention_slicing()
+    sdxl.optimize_pipeline(pipe, device)
+    sdxl.optimize_pipeline(refiner, device)
 
     # Ensure consistent scheduler (Euler) for both pipelines
     pipe.scheduler = EulerDiscreteScheduler.from_config(pipe.scheduler.config)
@@ -96,7 +74,7 @@ def generate_image() -> Path:
 
     with torch.no_grad():
 
-        generator = torch.Generator(device=device).manual_seed(config.generation_seed)
+        generator = sdxl.create_generator(device, config.generation_seed)
 
         print("Using generation properties of:")
         print(f"  * Device: {device}")
