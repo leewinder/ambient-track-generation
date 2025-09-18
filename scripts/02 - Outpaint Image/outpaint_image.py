@@ -10,6 +10,26 @@ from PIL import Image
 import torch
 from diffusers import StableDiffusionXLInpaintPipeline
 
+
+class Dimensions:
+    """Container for image dimensions used in outpainting process."""
+
+    def __init__(self, source_width: int, source_height: int,
+                 target_width: int, target_height: int,
+                 working_width: int, working_height: int):
+        self.source = DimensionPair(source_width, source_height)
+        self.target = DimensionPair(target_width, target_height)
+        self.working = DimensionPair(working_width, working_height)
+
+
+class DimensionPair:
+    """Container for width and height pair."""
+
+    def __init__(self, width: int, height: int):
+        self.width = width
+        self.height = height
+
+
 # Add path and import project-specific config and authentication utilities
 common_path = Path(__file__).parent.parent / "00 - Common"
 sys.path.insert(0, str(common_path))
@@ -39,29 +59,38 @@ def get_device():
     return "cpu"
 
 
-def calculate_target_dimensions(source_width: int, source_height: int) -> tuple[int, int]:
+def calculate_target_dimensions(source_width: int, source_height: int) -> Dimensions:
     """
-    Calculate target dimensions for 16:9 aspect ratio outpainting.
+    Calculate target and working dimensions for 16:9 aspect ratio outpainting.
 
     Args:
-        source_width: Original image width (unused but kept for interface consistency)
+        source_width: Original image width
         source_height: Original image height
 
     Returns:
-        Tuple of (target_width, target_height) for 16:9 ratio
+        Dimensions object containing source, target, and working dimensions
     """
     # For 16:9 aspect ratio: width = height * 16 / 9
-    target_width = int(source_height * 16 / 9)
+    target_width = int(source_height * 16 / 9)  # Keep exact 16:9 ratio (1820)
     target_height = source_height  # Keep height the same
 
-    # Snap to nearest multiple of 8 as StableDiffusionXLInpaintPipeline needs that
-    target_width = (target_width // 8) * 8
-    target_height = (target_height // 8) * 8
+    # Calculate working dimensions (5% extra on each side for better generation)
+    extra_width = int(target_width * 0.05)  # 5% of target width
+    working_width = target_width + (2 * extra_width)  # 5% on left + 5% on right
+    working_height = target_height  # Height stays the same
 
-    # Suppress unused argument warning
-    _ = source_width
+    # Ensure working width is multiple of 8 (for pipeline compatibility)
+    # Round UP to next multiple of 8 to ensure we have enough space
+    working_width = ((working_width + 7) // 8) * 8
 
-    return target_width, target_height
+    return Dimensions(
+        source_width=source_width,
+        source_height=source_height,
+        target_width=target_width,
+        target_height=target_height,
+        working_width=working_width,
+        working_height=working_height
+    )
 
 
 def create_feathered_mask(width: int, height: int, mask_width: int,
@@ -107,36 +136,37 @@ def create_feathered_mask(width: int, height: int, mask_width: int,
     return mask
 
 
-def prime_canvas_with_smear(source_image: Image.Image, target_width: int, target_height: int) -> Image.Image:
+def prime_canvas_with_smear(source_image: Image.Image, dimensions: Dimensions) -> Image.Image:
     """
     Creates a new canvas and primes it for outpainting by smearing the edges of the source image.
 
     Args:
         source_image: The original PIL Image object.
-        target_width: The total width of the new canvas.
-        target_height: The total height of the new canvas.
+        dimensions: Dimensions object containing working dimensions.
 
     Returns:
         A new PIL Image object with the source image centered and edges smeared.
     """
-    source_width, _ = source_image.size
-    expansion_per_side = (target_width - source_width) // 2
+    working_expansion_per_side = (dimensions.working.width - dimensions.source.width) // 2
 
     print("Creating and priming the canvas for outpainting...")
 
     # Create a new canvas and paste the source image into the center
-    final_canvas = Image.new("RGB", (target_width, target_height))
-    final_canvas.paste(source_image, (expansion_per_side, 0))
+    final_canvas = Image.new("RGB", (dimensions.working.width, dimensions.working.height))
+    final_canvas.paste(source_image, (working_expansion_per_side, 0))
 
     # --- Prime the canvas by smearing the edges ---
     # Smear the right edge
-    right_edge_column = source_image.crop((source_width - 1, 0, source_width, target_height))
-    smeared_right = right_edge_column.resize((expansion_per_side, target_height), Image.Resampling.BOX)
-    final_canvas.paste(smeared_right, (source_width + expansion_per_side, 0))
+    right_edge_column = source_image.crop(
+        (dimensions.source.width - 1, 0, dimensions.source.width, dimensions.working.height))
+    smeared_right = right_edge_column.resize(
+        (working_expansion_per_side, dimensions.working.height), Image.Resampling.BOX)
+    final_canvas.paste(smeared_right, (dimensions.source.width + working_expansion_per_side, 0))
 
     # Smear the left edge
-    left_edge_column = source_image.crop((0, 0, 1, target_height))
-    smeared_left = left_edge_column.resize((expansion_per_side, target_height), Image.Resampling.BOX)
+    left_edge_column = source_image.crop((0, 0, 1, dimensions.working.height))
+    smeared_left = left_edge_column.resize(
+        (working_expansion_per_side, dimensions.working.height), Image.Resampling.BOX)
     final_canvas.paste(smeared_left, (0, 0))
 
     return final_canvas
@@ -162,27 +192,24 @@ def outpaint_image():
     if not source_image_path.is_file():
         raise FileNotFoundError(f"Required input file not found: {source_image_path}")
 
-    # Ensure our sub folder for saving the data exists
-    internal_temp_folder = "outpaint"
-    output_path = Path(args.output) / config.result_dir / config.temp_dir / internal_temp_folder
-
     # Load the source image
     source_image = Image.open(source_image_path).convert("RGB")
     source_width, source_height = source_image.size
 
-    # Calculate target dimensions for 16:9 ratio
-    target_width, target_height = calculate_target_dimensions(source_width, source_height)
+    # Calculate target and working dimensions for 16:9 ratio
+    dimensions = calculate_target_dimensions(source_width, source_height)
 
-    # Calculate how much to expand on each side
-    total_expansion = target_width - source_width
-    expansion_per_side = total_expansion // 2
+    # Calculate how much to expand on each side for working dimensions
+    working_expansion_per_side = (dimensions.working.width - dimensions.source.width) // 2
 
     # Calculate feather size (2% of image width)
-    feather_size = max(1, int(source_width * (config.outpaint_feathering / 100.0)))
+    feather_size = max(1, int(dimensions.source.width * (config.outpaint_feathering / 100.0)))
+
     print("The following properties will be used as part of the outpainting process")
-    print(f"  * Source image: {source_width}x{source_height}")
-    print(f"  * Target image: {target_width}x{target_height}")
-    print(f"  * Expansion per side: {expansion_per_side}px")
+    print(f"  * Source image: {dimensions.source.width}x{dimensions.source.height}")
+    print(f"  * Target image: {dimensions.target.width}x{dimensions.target.height}")
+    print(f"  * Working image: {dimensions.working.width}x{dimensions.working.height}")
+    print(f"  * Working expansion per side: {working_expansion_per_side}px")
     print(f"  * Feather size: {config.outpaint_feathering}%")
     print(f"  * Steps: {config.outpaint_generation_steps}")
     print(f"  * Guidance: {config.outpaint_guidance}")
@@ -214,16 +241,16 @@ def outpaint_image():
     print("\n\n-------- OUT PAINTING IMAGE --------")
 
     # Create and prime the canvas using our new function
-    final_canvas = prime_canvas_with_smear(source_image, target_width, target_height)
+    final_canvas = prime_canvas_with_smear(source_image, dimensions)
     save_interim_result(final_canvas, "widened")
 
     print("Outpainting right side...")
 
     # Create mask for right side (mask should cover the right expansion area + overlap)
     # Extend mask into original image area for proper blending
-    right_mask_width = expansion_per_side + feather_size
-    right_mask_x = (source_width + expansion_per_side) - feather_size
-    right_mask = create_feathered_mask(target_width, target_height,
+    right_mask_width = working_expansion_per_side + feather_size
+    right_mask_x = (dimensions.source.width + working_expansion_per_side) - feather_size
+    right_mask = create_feathered_mask(dimensions.working.width, dimensions.working.height,
                                        right_mask_width, feather_size,
                                        mask_x=right_mask_x,
                                        feather_from_left=True)
@@ -241,8 +268,8 @@ def outpaint_image():
             num_inference_steps=config.outpaint_generation_steps,
             guidance_scale=config.outpaint_guidance,
             generator=generator,
-            height=target_height,
-            width=target_width
+            height=dimensions.working.height,
+            width=dimensions.working.width
         ).images[0]
     save_interim_result(right_result, "right_result")
 
@@ -250,8 +277,8 @@ def outpaint_image():
 
     # Create mask for left side (mask should cover the left expansion area + overlap)
     # Extend mask into original image area for proper blending
-    left_mask_width = expansion_per_side + feather_size
-    left_mask = create_feathered_mask(target_width, target_height,
+    left_mask_width = working_expansion_per_side + feather_size
+    left_mask = create_feathered_mask(dimensions.working.width, dimensions.working.height,
                                       left_mask_width, feather_size,
                                       mask_x=0, feather_from_left=False)
     save_interim_result(left_mask, "left_mask")
@@ -266,15 +293,21 @@ def outpaint_image():
             num_inference_steps=config.outpaint_generation_steps,
             guidance_scale=config.outpaint_guidance,
             generator=generator,
-            height=target_height,
-            width=target_width
+            height=dimensions.working.height,
+            width=dimensions.working.width
         ).images[0]
     save_interim_result(left_result, "left_result")
 
-    # Save the result
+    # Crop the result to exact 16:9 ratio (remove the 5% extra on each side)
+    print("Cropping to exact 16:9 ratio...")
+    crop_x = (dimensions.working.width - dimensions.target.width) // 2
+    crop_box = (crop_x, 0, crop_x + dimensions.target.width, dimensions.target.height)
+    final_result = left_result.crop(crop_box)
+
+    # Save the final result
     final_output_path = Path(args.output) / config.result_dir / config.temp_dir / config.output_stage_02
     final_output_path.parent.mkdir(parents=True, exist_ok=True)
-    left_result.save(final_output_path)
+    final_result.save(final_output_path)
 
     return str(final_output_path)
 
