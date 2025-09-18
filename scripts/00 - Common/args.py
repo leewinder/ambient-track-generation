@@ -1,11 +1,9 @@
-"""
-Common argument parser for all scripts in the project.
-"""
+""" Common argument parser for all scripts in the project """
 import argparse
 
 
-def parse_common_arguments(description: str = None) -> argparse.Namespace:
-    """Parse common command line arguments for all scripts."""
+def parse_common_arguments(description: str | None = None) -> argparse.Namespace:
+    """ Parse common command line arguments for all scripts """
     parser = argparse.ArgumentParser(description=description or 'Script with common arguments')
 
     # Common arguments for all scripts
