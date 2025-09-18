@@ -16,3 +16,6 @@ numpy<2.0.0
 # Code quality tools
 pylint==3.0.3
 autopep8==2.0.4
+
+# General
+jsonschema==4.25.1

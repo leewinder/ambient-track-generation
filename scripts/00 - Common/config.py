@@ -6,6 +6,84 @@ import time
 from pathlib import Path
 from typing import Any
 
+import jsonschema
+
+# Strict schema definition - only allows defined fields, catches typos
+CONFIG_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["prompts"],
+    "properties": {
+        "debug": {
+            "type": "boolean"
+        },
+        "prompts": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["image_positive", "image_negative"],
+            "properties": {
+                "image_positive": {"type": "string", "minLength": 1},
+                "image_negative": {"type": "string", "minLength": 1}
+            }
+        },
+        "dimensions": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "image": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "width": {"type": "integer", "minimum": 64, "maximum": 4096},
+                        "height": {"type": "integer", "minimum": 64, "maximum": 4096}
+                    }
+                }
+            }
+        },
+        "generation": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "seed": {"type": "integer", "minimum": 0},
+                "image": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "steps": {"type": "integer", "minimum": 1, "maximum": 100},
+                        "base_fractal": {"type": "number", "minimum": 0.1, "maximum": 0.9},
+                        "guidance": {"type": "number", "minimum": 0, "maximum": 20},
+                    }
+                },
+                "outpaint": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "steps": {"type": "integer", "minimum": 1, "maximum": 100},
+                        "guidance": {"type": "number", "minimum": 0, "maximum": 20},
+                        "feathering": {"type": "number", "minimum": 0, "maximum": 10}
+                    }
+                }
+            }
+        },
+        "paths": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "result_dir": {"type": "string", "minLength": 1},
+                "temp_dir": {"type": "string", "minLength": 1},
+                "outputs": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "01": {"type": "string", "minLength": 1},
+                        "02": {"type": "string", "minLength": 1}
+                    }
+                }
+            }
+        }
+    }
+}
+
 
 class Config:
     """ Configuration object that loads and provides access to config.json values """
@@ -16,17 +94,32 @@ class Config:
         self._data = self._load_config()
 
     def _load_config(self) -> dict[str, Any]:
-        """ Load the configuration from the JSON file """
+        """ Load and validate the configuration from the JSON file """
         try:
             with open(self.config_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                data = json.load(f)
         except FileNotFoundError as exc:
             raise FileNotFoundError(
                 f"Config file not found: {self.config_path}") from exc
         except json.JSONDecodeError as exc:
             raise ValueError(f"Invalid JSON in config file: {exc}") from exc
 
+        # Validate against schema
+        try:
+            jsonschema.validate(data, CONFIG_SCHEMA)
+        except jsonschema.ValidationError as exc:
+            # Create helpful error message
+            error_path = " -> ".join(str(p) for p in exc.absolute_path) if exc.absolute_path else "root"
+            raise ValueError(
+                f"Config validation error at '{error_path}': {exc.message}"
+            ) from exc
+        except jsonschema.SchemaError as exc:
+            raise ValueError(f"Internal schema error: {exc}") from exc
+
+        return data
+
     # --- General properties ---
+    @property
     def debug(self) -> bool:
         """ Get debug mode state """
         return self._data.get("debug", False)
@@ -105,12 +198,12 @@ class Config:
     # --- Output names ---
     @property
     def output_stage_01(self) -> str:
-        """ Get the output content """
+        """ Get the filename for stage 01 initial image output """
         return self._data.get("paths", {}).get("outputs", {}).get("01", "01_initial_image.png")
 
     @property
     def output_stage_02(self) -> str:
-        """ Get the output content """
+        """ Get the filename for stage 02 outpainted image output """
         return self._data.get("paths", {}).get("outputs", {}).get("02", "02_widened_image.png")
 
 

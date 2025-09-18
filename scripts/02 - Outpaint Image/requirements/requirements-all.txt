@@ -10,3 +10,6 @@ accelerate==0.34.0
 
 # Image processing
 pillow==11.3.0
+
+# General
+jsonschema==4.25.1
