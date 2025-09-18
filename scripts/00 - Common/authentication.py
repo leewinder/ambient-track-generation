@@ -5,6 +5,23 @@ import json
 from pathlib import Path
 from typing import Any
 
+import jsonschema
+
+
+# Strict schema definition - only allows defined authentication providers
+AUTHENTICATION_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["huggingface"],
+    "properties": {
+        "huggingface": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^hf_[a-zA-Z0-9]{34}$"
+        }
+    }
+}
+
 
 class Authentication:
     """ Authentication object that loads and provides access to authentication.json values """
@@ -15,15 +32,29 @@ class Authentication:
         self._data = self._load_authentication()
 
     def _load_authentication(self) -> dict[str, Any]:
-        """ Load the authentication from the JSON file """
+        """ Load and validate the authentication from the JSON file """
         try:
             with open(self.authentication_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                data = json.load(f)
         except FileNotFoundError as exc:
             raise FileNotFoundError(
                 f"Authentication file not found: {self.authentication_path}") from exc
         except json.JSONDecodeError as exc:
             raise ValueError(f"Invalid JSON in authentication file: {exc}") from exc
+
+        # Validate against schema
+        try:
+            jsonschema.validate(data, AUTHENTICATION_SCHEMA)
+        except jsonschema.ValidationError as exc:
+            # Create helpful error message
+            error_path = " -> ".join(str(p) for p in exc.absolute_path) if exc.absolute_path else "root"
+            raise ValueError(
+                f"Authentication validation error at '{error_path}': {exc.message}"
+            ) from exc
+        except jsonschema.SchemaError as exc:
+            raise ValueError(f"Internal authentication schema error: {exc}") from exc
+
+        return data
 
     # Properties
     @property
