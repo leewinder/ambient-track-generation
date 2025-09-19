@@ -15,6 +15,10 @@ from diffusers import StableDiffusionXLPipeline, StableDiffusionXLImg2ImgPipelin
 from pipeline_utilities import authentication, generation, args, logging_utils
 from pipeline_utilities import sdxl_utils as sdxl
 
+# To get good results we need to use a square aspect ratio so ensure that's the case
+DEFAULT_IMAGE_WIDTH = 1024
+DEFAULT_IMAGE_HEIGHT = DEFAULT_IMAGE_WIDTH
+
 _args = args.parse_arguments("Generates an image using Stable Diffusion XL")
 
 _authentication = authentication.load_authentication_config(_args.authentication)
@@ -24,7 +28,6 @@ _logger = logging_utils.setup_pipeline_logging(
     log_file=_args.log_file,
     debug=_config.data.debug
 )
-
 
 _AvailableModels = TypeVar('_AvailableModels', StableDiffusionXLPipeline, StableDiffusionXLImg2ImgPipeline)
 
@@ -94,8 +97,8 @@ def _generate_image() -> Path:
         latents = pipe(
             prompt=_config.data.prompts.image_positive,
             negative_prompt=_config.data.prompts.image_negative,
-            width=_config.data.dimensions.image.width,
-            height=_config.data.dimensions.image.height,
+            width=DEFAULT_IMAGE_WIDTH,
+            height=DEFAULT_IMAGE_HEIGHT,
             num_inference_steps=_config.data.generation.image.steps,
             denoising_end=_config.data.generation.image.base_fractal,
             guidance_scale=_config.data.generation.image.guidance,

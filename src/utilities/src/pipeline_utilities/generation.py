@@ -15,17 +15,6 @@ class PromptsConfig(StrictBaseModel):
     image_negative: str = Field("", description="Negative prompt for image generation")
 
 
-class ImageDimensionsConfig(StrictBaseModel):
-    """ Configuration for image dimensions """
-    width: int = Field(1024, ge=64, le=4096, description="Image width in pixels")
-    height: int = Field(1024, ge=64, le=4096, description="Image height in pixels")
-
-
-class DimensionsConfig(StrictBaseModel):
-    """ Configuration for various dimension settings """
-    image: ImageDimensionsConfig = ImageDimensionsConfig()
-
-
 class ImageGenerationConfig(StrictBaseModel):
     """ Configuration for image generation parameters """
     steps: int = Field(50, ge=1, le=200, description="Number of inference steps")
@@ -66,7 +55,6 @@ class ConfigData(StrictBaseModel):
     """ Main configuration data model """
     debug: bool = Field(False, description="Enable debug mode")
     prompts: PromptsConfig
-    dimensions: DimensionsConfig = DimensionsConfig()
     generation: GenerationConfig = GenerationConfig()
     paths: PathsConfig = PathsConfig()
 

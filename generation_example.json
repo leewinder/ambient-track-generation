@@ -1,13 +1,6 @@
 {
   "debug": false,
 
-  "dimensions": {
-    "image": {
-      "width": 1024,
-      "height": 1024
-    }
-  },
-
   "generation": {
     "seed": 2,
     "image": {
