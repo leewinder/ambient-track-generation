@@ -14,6 +14,12 @@ from pipeline_utilities import authentication, generation, args, logging_utils
 from pipeline_utilities import sdxl_utils as sdxl
 
 
+class Side:
+    """ Constants identifying each side of the image """
+    LEFT = "left"
+    RIGHT = "right"
+
+
 class Dimensions:
     """ Container for image dimensions used in outpainting process """
 
@@ -71,6 +77,33 @@ def _calculate_target_dimensions(source_width: int, source_height: int) -> Dimen
     )
 
 
+def _prime_canvas_with_smear(source_image: Image.Image, dimensions: Dimensions) -> Image.Image:
+    """ Creates a new canvas and primes it for outpainting by smearing the edges of the source image """
+    working_expansion_per_side = (dimensions.working.width - dimensions.source.width) // 2
+
+    _logger.info("Creating and priming the canvas for outpainting")
+
+    # Create a new canvas and paste the source image into the center
+    final_canvas = Image.new("RGB", (dimensions.working.width, dimensions.working.height))
+    final_canvas.paste(source_image, (working_expansion_per_side, 0))
+
+    # --- Prime the canvas by smearing the edges ---
+    # Smear the right edge
+    right_edge_column = source_image.crop(
+        (dimensions.source.width - 1, 0, dimensions.source.width, dimensions.working.height))
+    smeared_right = right_edge_column.resize(
+        (working_expansion_per_side, dimensions.working.height), Image.Resampling.BOX)
+    final_canvas.paste(smeared_right, (dimensions.source.width + working_expansion_per_side, 0))
+
+    # Smear the left edge
+    left_edge_column = source_image.crop((0, 0, 1, dimensions.working.height))
+    smeared_left = left_edge_column.resize(
+        (working_expansion_per_side, dimensions.working.height), Image.Resampling.BOX)
+    final_canvas.paste(smeared_left, (0, 0))
+
+    return final_canvas
+
+
 def _create_feathered_mask(width: int, height: int, mask_width: int,
                            feather_size: int, mask_x: int = 0,
                            feather_from_left: bool = True) -> Image.Image:
@@ -100,31 +133,44 @@ def _create_feathered_mask(width: int, height: int, mask_width: int,
     return mask
 
 
-def _prime_canvas_with_smear(source_image: Image.Image, dimensions: Dimensions) -> Image.Image:
-    """ Creates a new canvas and primes it for outpainting by smearing the edges of the source image """
+def _outpaint_side(side: Side, dimensions: Dimensions, generator: torch.Generator, pipeline: StableDiffusionXLInpaintPipeline, canvas: Image.Image, mask: Image.Image) -> Image.Image:
+    """ Generates an out paint for one side of the image """
+
+    # Build up the properties of the mask side
     working_expansion_per_side = (dimensions.working.width - dimensions.source.width) // 2
+    feather_size = max(1, int(dimensions.source.width * (_config.data.generation.outpaint.feathering / 100.0)))
+    mask_width = working_expansion_per_side + feather_size
 
-    _logger.info("Creating and priming the canvas for outpainting")
+    # Create mask for right side (mask should cover the right expansion area + overlap)
+    # Extend mask into original image area for proper blending
+    right_mask_x = (dimensions.source.width + working_expansion_per_side) - feather_size
+    right_mask = _create_feathered_mask(dimensions.working.width, dimensions.working.height,
+                                        mask_width, feather_size,
+                                        mask_x=right_mask_x, feather_from_left=True)
+    _save_interim_result(right_mask, "right_mask")
 
-    # Create a new canvas and paste the source image into the center
-    final_canvas = Image.new("RGB", (dimensions.working.width, dimensions.working.height))
-    final_canvas.paste(source_image, (working_expansion_per_side, 0))
+    left_mask = _create_feathered_mask(dimensions.working.width, dimensions.working.height,
+                                       mask_width, feather_size,
+                                       mask_x=0, feather_from_left=False)
+    _save_interim_result(left_mask, "left_mask")
 
-    # --- Prime the canvas by smearing the edges ---
-    # Smear the right edge
-    right_edge_column = source_image.crop(
-        (dimensions.source.width - 1, 0, dimensions.source.width, dimensions.working.height))
-    smeared_right = right_edge_column.resize(
-        (working_expansion_per_side, dimensions.working.height), Image.Resampling.BOX)
-    final_canvas.paste(smeared_right, (dimensions.source.width + working_expansion_per_side, 0))
+    # Perform right side inpainting
 
-    # Smear the left edge
-    left_edge_column = source_image.crop((0, 0, 1, dimensions.working.height))
-    smeared_left = left_edge_column.resize(
-        (working_expansion_per_side, dimensions.working.height), Image.Resampling.BOX)
-    final_canvas.paste(smeared_left, (0, 0))
-
-    return final_canvas
+    result: Image.Image = None
+    with torch.no_grad():
+        result = pipeline(
+            prompt=_config.data.prompts.image_positive,
+            negative_prompt=_config.data.prompts.image_negative,
+            image=canvas,
+            mask_image=mask,
+            num_inference_steps=_config.data.generation.outpaint.steps,
+            guidance_scale=_config.data.generation.outpaint.guidance,
+            generator=generator,
+            height=dimensions.working.height,
+            width=dimensions.working.width
+        ).images[0]
+    _save_interim_result(result, f"{side}_result")
+    return result
 
 
 def _save_interim_result(interim_image: Image.Image, name: str) -> None:
@@ -169,14 +215,14 @@ def _outpaint_image() -> str:
     # Calculate feather size (2% of image width)
     feather_size = max(1, int(dimensions.source.width * (_config.data.generation.outpaint.feathering / 100.0)))
 
-    _logger.info("The following properties will be used as part of the outpainting process")
-    _logger.info("  Source image: %dx%d", dimensions.source.width, dimensions.source.height)
-    _logger.info("  Target image: %dx%d", dimensions.target.width, dimensions.target.height)
-    _logger.info("  Working image: %dx%d", dimensions.working.width, dimensions.working.height)
-    _logger.info("  Working expansion per side: %dpx", working_expansion_per_side)
-    _logger.info("  Feather size: %.1f%%", _config.data.generation.outpaint.feathering)
-    _logger.info("  Steps: %d", _config.data.generation.outpaint.steps)
-    _logger.info("  Guidance: %.1f", _config.data.generation.outpaint.guidance)
+    _logger.debug("The following properties will be used as part of the outpainting process")
+    _logger.debug("  Source image: %dx%d", dimensions.source.width, dimensions.source.height)
+    _logger.debug("  Target image: %dx%d", dimensions.target.width, dimensions.target.height)
+    _logger.debug("  Working image: %dx%d", dimensions.working.width, dimensions.working.height)
+    _logger.debug("  Working expansion per side: %dpx", working_expansion_per_side)
+    _logger.debug("  Feather size: %.1f%%", _config.data.generation.outpaint.feathering)
+    _logger.debug("  Steps: %d", _config.data.generation.outpaint.steps)
+    _logger.debug("  Guidance: %.1f", _config.data.generation.outpaint.guidance)
 
     _logger.header("Setting up Stable Diffusion Inpainting Pipeline")
     _logger.info("Loading SDXL inpainting pipeline (this will take a while the first time)")
@@ -191,13 +237,10 @@ def _outpaint_image() -> str:
         token=_authentication.data.huggingface,
         add_watermarker=False
     ).to(device)
-
-    # Optimize pipeline for memory and compute efficiency
     sdxl.optimize_pipeline(pipe, device)
 
-    _logger.header("Outpainting Image")
-
     # Create and prime the canvas using our new function
+    _logger.header("Creating Canvas")
     final_canvas = _prime_canvas_with_smear(source_image, dimensions)
     _save_interim_result(final_canvas, "widened")
 
@@ -215,19 +258,7 @@ def _outpaint_image() -> str:
 
     # Perform right side inpainting
     generator = sdxl.create_generator(device, _config.data.generation.seed)
-    with torch.no_grad():
-        right_result = pipe(
-            prompt=_config.data.prompts.image_positive,
-            negative_prompt=_config.data.prompts.image_negative,
-            image=final_canvas,
-            mask_image=right_mask,
-            num_inference_steps=_config.data.generation.outpaint.steps,
-            guidance_scale=_config.data.generation.outpaint.guidance,
-            generator=generator,
-            height=dimensions.working.height,
-            width=dimensions.working.width
-        ).images[0]
-    _save_interim_result(right_result, "right_result")
+    right_result = _outpaint_side("right", dimensions, generator, pipe, final_canvas, right_mask)
 
     _logger.info("Outpainting left side")
 
@@ -240,19 +271,7 @@ def _outpaint_image() -> str:
     _save_interim_result(left_mask, "left_mask")
 
     # Perform left side inpainting
-    with torch.no_grad():
-        left_result = pipe(
-            prompt=_config.data.prompts.image_positive,
-            negative_prompt=_config.data.prompts.image_negative,
-            image=right_result,
-            mask_image=left_mask,
-            num_inference_steps=_config.data.generation.outpaint.steps,
-            guidance_scale=_config.data.generation.outpaint.guidance,
-            generator=generator,
-            height=dimensions.working.height,
-            width=dimensions.working.width
-        ).images[0]
-    _save_interim_result(left_result, "left_result")
+    left_result = _outpaint_side("left", dimensions, generator, pipe, right_result, left_mask)
 
     # Crop the result to exact 16:9 ratio (remove the 5% extra on each side)
     _logger.info("Cropping to exact 16:9 ratio")
