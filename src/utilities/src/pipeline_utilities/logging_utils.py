@@ -6,34 +6,6 @@ import sys
 from pathlib import Path
 
 
-def setup_pipeline_logging(
-    log_file: str = "pipeline.log",
-    debug: bool = False,
-    script_name: str | None = None
-) -> "EnhancedLogger":
-    """ Standard logging setup for all pipeline scripts """
-    level = logging.DEBUG if debug else logging.INFO
-
-    # Ensure log directory exists
-    log_path = Path(log_file)
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-
-    logging.basicConfig(
-        level=level,
-        format='%(asctime)s - %(levelname)-8s  %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S',
-        handlers=[
-            logging.FileHandler(log_file, mode='a'),  # Append to shared file
-            logging.StreamHandler(sys.stdout)         # Also show in console
-        ],
-        force=True  # Override any existing config
-    )
-
-    # Return enhanced logger for the script
-    base_logger = logging.getLogger(script_name or __name__)
-    return EnhancedLogger(base_logger)
-
-
 class EnhancedLogger:
     """ Enhanced logger with custom methods for better formatting """
 
@@ -56,4 +28,32 @@ class EnhancedLogger:
 def get_logger(name: str | None = None) -> EnhancedLogger:
     """ Get an enhanced logger for the calling module """
     base_logger = logging.getLogger(name or __name__)
+    return EnhancedLogger(base_logger)
+
+
+def setup_pipeline_logging(
+    log_file: str = "pipeline.log",
+    debug: bool = False,
+    script_name: str | None = None
+) -> "EnhancedLogger":
+    """ Standard logging setup for all pipeline scripts """
+    level = logging.DEBUG if debug else logging.INFO
+
+    # Ensure log directory exists
+    log_path = Path(log_file)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    logging.basicConfig(
+        level=level,
+        format='%(asctime)s - %(levelname)-8s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S',
+        handlers=[
+            logging.FileHandler(log_file, mode='a'),  # Append to shared file
+            logging.StreamHandler(sys.stdout)         # Also show in console
+        ],
+        force=True  # Override any existing config
+    )
+
+    # Return enhanced logger for the script
+    base_logger = logging.getLogger(script_name or __name__)
     return EnhancedLogger(base_logger)

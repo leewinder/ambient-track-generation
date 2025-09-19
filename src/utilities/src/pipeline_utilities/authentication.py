@@ -4,8 +4,8 @@
 import re
 
 from pydantic import Field, field_validator
-from pydantic_utils import StrictBaseModel, JsonFileLoader, create_loader_function
-import logging_utils
+from .pydantic_utils import StrictBaseModel, JsonFileLoader, create_loader_function
+from . import logging_utils
 
 # Regex pattern for Hugging Face token validation
 HF_TOKEN_PATTERN = r'^hf_[a-zA-Z0-9]{30,40}$'
@@ -32,7 +32,7 @@ class AuthenticationData(StrictBaseModel):
 class Authentication(JsonFileLoader):
     """ Authentication object that loads and provides access to authentication.json values """
 
-    def __init__(self, authentication_path: str = "../../authentication.json"):
+    def __init__(self, authentication_path: str):
         """ Initialize the authentication by loading from the specified path """
         logger = logging_utils.get_logger(__name__)
         logger.debug("Loading authentication from: %s", authentication_path)
@@ -45,4 +45,4 @@ class Authentication(JsonFileLoader):
 
 
 # Create the convenience function using the factory
-load_authentication = create_loader_function(Authentication, "../../authentication.json")
+load_authentication = create_loader_function(Authentication, "authentication.json")

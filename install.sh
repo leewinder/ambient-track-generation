@@ -55,8 +55,8 @@ TARGET_FOLDER="$1"
 
 # Define folders
 folders=(
-    "scripts/01 - Generate Images" 
-    "scripts/02 - Outpaint Image"
+    "src/generation/01 - Generate Image" 
+    "src/generation/02 - Widen Image"
 )
 
 # Define requirements for each folder (space-separated strings)
@@ -112,6 +112,5 @@ done
 echo ""
 echo ""
 echo "All installations complete!"
-echo "To activate a virtual environment for a folder: source <folder>/venv/bin/activate"
 echo ""
 echo ""

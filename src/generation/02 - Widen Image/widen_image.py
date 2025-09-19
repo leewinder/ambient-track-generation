@@ -10,6 +10,10 @@ from PIL import Image
 import torch
 from diffusers import StableDiffusionXLInpaintPipeline
 
+# Clean imports using the utilities package
+from pipeline_utilities import authentication, config, args, logging_utils
+from pipeline_utilities import sdxl_utils as sdxl
+
 
 class Dimensions:
     """ Container for image dimensions used in outpainting process """
@@ -30,18 +34,10 @@ class DimensionPair:
         self.height = height
 
 
-# Add path and import project-specific config and authentication utilities
-common_path = Path(__file__).parent.parent / "00 - Common"
-sys.path.insert(0, str(common_path))
-
-# fmt: off
-# noqa: E402,E501  # pylint: disable-next=import-error,wrong-import-position,multiple-imports
-import authentication, config, args, sdxl_utils as sdxl, logging_utils
-# fmt: on
-
-authentication = authentication.load_authentication()
-config = config.load_config()
 args = args.parse_arguments("Outpaints a given image using Stable Diffusion")
+
+authentication = authentication.load_authentication(args.authentication)
+config = config.load_config(args.config)
 
 # Setup logging using config debug flag
 logger = logging_utils.setup_pipeline_logging(
@@ -171,14 +167,14 @@ def outpaint_image() -> str:
     # Calculate feather size (2% of image width)
     feather_size = max(1, int(dimensions.source.width * (config.data.generation.outpaint.feathering / 100.0)))
 
-    logger.debug("The following properties will be used as part of the outpainting process")
-    logger.debug("  Source image: %dx%d", dimensions.source.width, dimensions.source.height)
-    logger.debug("  Target image: %dx%d", dimensions.target.width, dimensions.target.height)
-    logger.debug("  Working image: %dx%d", dimensions.working.width, dimensions.working.height)
-    logger.debug("  Working expansion per side: %dpx", working_expansion_per_side)
-    logger.debug("  Feather size: %.1f%%", config.data.generation.outpaint.feathering)
-    logger.debug("  Steps: %d", config.data.generation.outpaint.steps)
-    logger.debug("  Guidance: %.1f", config.data.generation.outpaint.guidance)
+    logger.info("The following properties will be used as part of the outpainting process")
+    logger.info("  Source image: %dx%d", dimensions.source.width, dimensions.source.height)
+    logger.info("  Target image: %dx%d", dimensions.target.width, dimensions.target.height)
+    logger.info("  Working image: %dx%d", dimensions.working.width, dimensions.working.height)
+    logger.info("  Working expansion per side: %dpx", working_expansion_per_side)
+    logger.info("  Feather size: %.1f%%", config.data.generation.outpaint.feathering)
+    logger.info("  Steps: %d", config.data.generation.outpaint.steps)
+    logger.info("  Guidance: %.1f", config.data.generation.outpaint.guidance)
 
     logger.header("Setting up Stable Diffusion Inpainting Pipeline")
     logger.info("Loading SDXL inpainting pipeline (this will take a while the first time)")
@@ -277,8 +273,20 @@ def main() -> None:
     try:
         output_path = outpaint_image()
         logger.info("Success! Image out painted: %s", output_path)
-    except (ImportError, OSError, RuntimeError, ValueError) as e:
-        logger.error("Error: %s", e)
+    except ImportError as e:
+        logger.error("Failed to import required libraries: %s", e)
+        sys.exit(1)
+    except OSError as e:
+        logger.error("File system error (check permissions and disk space): %s", e)
+        sys.exit(1)
+    except RuntimeError as e:
+        logger.error("Runtime error during image generation: %s", e)
+        sys.exit(1)
+    except ValueError as e:
+        logger.error("Configuration or input validation error: %s", e)
+        sys.exit(1)
+    except Exception as e:
+        logger.error("Unexpected error: %s", e)
         sys.exit(1)
 
 

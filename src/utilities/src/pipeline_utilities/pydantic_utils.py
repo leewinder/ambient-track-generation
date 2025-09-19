@@ -20,7 +20,8 @@ class JsonFileLoader:
 
     def __init__(self, file_path: str, model_class: type[StrictBaseModel]):
         """ Initialize the loader with file path and Pydantic model class """
-        self.file_path = Path(__file__).parent / file_path
+        # Look for config files in the current working directory
+        self.file_path = Path(file_path)
         self.model_class = model_class
         try:
             self._data = self._load_and_validate()

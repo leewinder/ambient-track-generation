@@ -3,10 +3,10 @@
 
 import torch
 from diffusers import DiffusionPipeline
-import logging_utils
+from . import logging_utils
 
 # Module-level logger
-logger = logging_utils.get_logger("SDXL")
+logger = logging_utils.get_logger(__name__)
 
 
 # Device constants

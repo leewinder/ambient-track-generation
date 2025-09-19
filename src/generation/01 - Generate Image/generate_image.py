@@ -10,19 +10,15 @@ from pathlib import Path
 import torch
 from diffusers import StableDiffusionXLPipeline, StableDiffusionXLImg2ImgPipeline, EulerDiscreteScheduler
 
+# Clean imports using the utilities package
+from pipeline_utilities import authentication, config, args, logging_utils
+from pipeline_utilities import sdxl_utils as sdxl
 
-# Add path and import project-specific config and authentication utilities
-common_path = Path(__file__).parent.parent / "00 - Common"
-sys.path.insert(0, str(common_path))
-
-# fmt: off
-# noqa: E402,E501  # pylint: disable-next=import-error,wrong-import-position,multiple-imports
-import authentication, config, args, sdxl_utils as sdxl, logging_utils
-# fmt: on
-
-authentication = authentication.load_authentication()
-config = config.load_config()
 args = args.parse_arguments("Generates an image using Stable Diffusion XL")
+
+authentication = authentication.load_authentication(args.authentication)
+config = config.load_config(args.config)
+
 
 # Setup logging using config debug flag
 logger = logging_utils.setup_pipeline_logging(
@@ -144,6 +140,9 @@ def main() -> None:
         sys.exit(1)
     except ValueError as e:
         logger.error("Configuration or input validation error: %s", e)
+        sys.exit(1)
+    except Exception as e:
+        logger.error("Unexpected error: %s", e)
         sys.exit(1)
 
 

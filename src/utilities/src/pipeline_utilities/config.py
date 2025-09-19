@@ -4,12 +4,11 @@
 import time
 
 from pydantic import Field
-from pydantic_utils import StrictBaseModel, JsonFileLoader, create_loader_function
-import logging_utils
+from .pydantic_utils import StrictBaseModel, JsonFileLoader, create_loader_function
+from . import logging_utils
+
 
 # Pydantic models for structured configuration
-
-
 class PromptsConfig(StrictBaseModel):
     """ Configuration for image generation prompts """
     image_positive: str = Field(..., min_length=1, description="Positive prompt for image generation")
@@ -80,7 +79,7 @@ class ConfigData(StrictBaseModel):
 class Config(JsonFileLoader):
     """ Configuration object that loads and provides access to config.json values """
 
-    def __init__(self, config_path: str = "../../config.json"):
+    def __init__(self, config_path: str):
         """ Initialize the config by loading from the specified path """
         logger = logging_utils.get_logger(__name__)
         logger.debug("Loading configuration from: %s", config_path)
@@ -93,4 +92,4 @@ class Config(JsonFileLoader):
 
 
 # Create the convenience function using the factory
-load_config = create_loader_function(Config, "../../config.json")
+load_config = create_loader_function(Config, "config.json")
