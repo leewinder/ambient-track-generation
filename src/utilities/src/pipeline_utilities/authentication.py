@@ -45,4 +45,4 @@ class Authentication(JsonFileLoader):
 
 
 # Create the convenience function using the factory
-load_authentication = create_loader_function(Authentication, "authentication.json")
+load_authentication_config = create_loader_function(Authentication, "authentication.json")

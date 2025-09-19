@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""" Loads the root config.json file and provides easy access to configuration values """
+""" Loads the root generation.json file and provides easy access to configuration values """
 
 import time
 
@@ -8,7 +8,7 @@ from .pydantic_utils import StrictBaseModel, JsonFileLoader, create_loader_funct
 from . import logging_utils
 
 
-# Pydantic models for structured configuration
+# Pydantic models for structured generation
 class PromptsConfig(StrictBaseModel):
     """ Configuration for image generation prompts """
     image_positive: str = Field(..., min_length=1, description="Positive prompt for image generation")
@@ -76,7 +76,7 @@ class ConfigData(StrictBaseModel):
         populate_by_name = True
 
 
-class Config(JsonFileLoader):
+class Generation(JsonFileLoader):
     """ Configuration object that loads and provides access to config.json values """
 
     def __init__(self, config_path: str):
@@ -92,4 +92,4 @@ class Config(JsonFileLoader):
 
 
 # Create the convenience function using the factory
-load_config = create_loader_function(Config, "config.json")
+load_generation_config = create_loader_function(Generation, "generation.json")

@@ -6,39 +6,52 @@ Generates a single image from a text prompt using the SDXL Base + Refiner pipeli
 
 import sys
 from pathlib import Path
+from typing import Type, TypeVar
 
 import torch
 from diffusers import StableDiffusionXLPipeline, StableDiffusionXLImg2ImgPipeline, EulerDiscreteScheduler
 
 # Clean imports using the utilities package
-from pipeline_utilities import authentication, config, args, logging_utils
+from pipeline_utilities import authentication, generation, args, logging_utils
 from pipeline_utilities import sdxl_utils as sdxl
 
-args = args.parse_arguments("Generates an image using Stable Diffusion XL")
+_args = args.parse_arguments("Generates an image using Stable Diffusion XL")
 
-authentication = authentication.load_authentication(args.authentication)
-config = config.load_config(args.config)
+_authentication = authentication.load_authentication_config(_args.authentication)
+_config = generation.load_generation_config(_args.config)
 
-
-# Setup logging using config debug flag
-logger = logging_utils.setup_pipeline_logging(
-    log_file=args.log_file,
-    debug=config.data.debug,
+_logger = logging_utils.setup_pipeline_logging(
+    log_file=_args.log_file,
+    debug=_config.data.debug,
     script_name="Image Generation"
 )
 
 
-def generate_image() -> Path:
+_AvailableModels = TypeVar('_AvailableModels', StableDiffusionXLPipeline, StableDiffusionXLImg2ImgPipeline)
+
+
+def _load_image_model(model_cls: Type[_AvailableModels], model_id: str, dtype: torch.dtype, device: str) -> _AvailableModels:
+    """ Loads the given model class """
+    return model_cls.from_pretrained(
+        model_id,
+        torch_dtype=dtype,
+        use_safetensors=True,
+        token=_authentication.data.huggingface,
+        add_watermarker=False
+    ).to(device)
+
+
+def _generate_image() -> Path:
     """ Generate an image using SDXL Base + Refiner pipelines with a 2-step denoising process """
 
     # Ensure output folder exists
-    output_path = (Path(args.output) /
-                   config.data.paths.result_dir /
-                   config.data.paths.temp_dir /
-                   config.data.paths.outputs.stage_01)
+    output_path = (Path(_args.output) /
+                   _config.data.paths.result_dir /
+                   _config.data.paths.temp_dir /
+                   _config.data.paths.outputs.stage_01)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    logger.header("Setting up Stable Diffusion XL (Base + Refiner)")
+    _logger.header("Setting up Stable Diffusion XL (Base + Refiner)")
 
     # Determine device and preferred precision
     device = sdxl.get_device()
@@ -48,25 +61,13 @@ def generate_image() -> Path:
     base_model_id = "stabilityai/stable-diffusion-xl-base-1.0"
     refiner_model_id = "stabilityai/stable-diffusion-xl-refiner-1.0"
 
-    logger.info("Loading SDXL base pipeline (this will take a while the first time)")
     # Load Base Pipeline: generates coarse image latents
-    pipe = StableDiffusionXLPipeline.from_pretrained(
-        base_model_id,
-        torch_dtype=dtype,
-        use_safetensors=True,
-        token=authentication.data.huggingface,
-        add_watermarker=False
-    ).to(device)
+    _logger.info("Loading SDXL base pipeline (this will take a while the first time)")
+    pipe = _load_image_model(StableDiffusionXLPipeline, base_model_id, dtype, device)
 
-    logger.info("Loading SDXL refiner pipeline")
     # Load Refiner Pipeline: refines the latents into a final high-quality image
-    refiner = StableDiffusionXLImg2ImgPipeline.from_pretrained(
-        refiner_model_id,
-        torch_dtype=dtype,
-        use_safetensors=True,
-        token=authentication.data.huggingface,
-        add_watermarker=False
-    ).to(device)
+    _logger.info("Loading SDXL refiner pipeline")
+    refiner = _load_image_model(StableDiffusionXLImg2ImgPipeline, refiner_model_id, dtype, device)
 
     # Optimize both pipelines for memory and compute efficiency
     sdxl.optimize_pipeline(pipe, device)
@@ -76,75 +77,72 @@ def generate_image() -> Path:
     pipe.scheduler = EulerDiscreteScheduler.from_config(pipe.scheduler.config)
     refiner.scheduler = EulerDiscreteScheduler.from_config(refiner.scheduler.config)
 
-    logger.header("Generating Image (2-Step)")
+    _logger.header("Generating Image (2-Step)")
 
     with torch.no_grad():
 
-        generator = sdxl.create_generator(device, config.data.generation.seed)
+        generator = sdxl.create_generator(device, _config.data.generation.seed)
 
-        logger.debug("Using generation properties:")
-        logger.debug("  Device: %s", device)
-        logger.debug("  Seed: %d", config.data.generation.seed)
-        logger.debug("  Generation Steps: %d", config.data.generation.image.steps)
-        logger.debug("  Base Fractal: %.2f", config.data.generation.image.base_fractal)
-        logger.debug("  Guidance Scale: %.1f", config.data.generation.image.guidance)
+        _logger.debug("Using generation properties:")
+        _logger.debug("  Device: %s", device)
+        _logger.debug("  Seed: %d", _config.data.generation.seed)
+        _logger.debug("  Generation Steps: %d", _config.data.generation.image.steps)
+        _logger.debug("  Base Fractal: %.2f", _config.data.generation.image.base_fractal)
+        _logger.debug("  Guidance Scale: %.1f", _config.data.generation.image.guidance)
 
         # Step 1: Base model generates coarse latents
-        logger.info("Running base model for %.1f%% of steps", config.data.generation.image.base_fractal * 100)
+        _logger.info("Running base model for %.1f%% of steps", _config.data.generation.image.base_fractal * 100)
         latents = pipe(
-            prompt=config.data.prompts.image_positive,
-            negative_prompt=config.data.prompts.image_negative,
-            width=config.data.dimensions.image.width,
-            height=config.data.dimensions.image.height,
-            num_inference_steps=config.data.generation.image.steps,
-            denoising_end=config.data.generation.image.base_fractal,
-            guidance_scale=config.data.generation.image.guidance,
+            prompt=_config.data.prompts.image_positive,
+            negative_prompt=_config.data.prompts.image_negative,
+            width=_config.data.dimensions.image.width,
+            height=_config.data.dimensions.image.height,
+            num_inference_steps=_config.data.generation.image.steps,
+            denoising_end=_config.data.generation.image.base_fractal,
+            guidance_scale=_config.data.generation.image.guidance,
             generator=generator,
             output_type="latent"  # Output latents, not a PIL image
         ).images
 
         # Step 2: Refiner model completes image generation
-        logger.info("Running refiner model for the remaining %.1f%% of steps",
-                    (1 - config.data.generation.image.base_fractal) * 100)
+        _logger.info("Running refiner model for the remaining %.1f%% of steps",
+                     (1 - _config.data.generation.image.base_fractal) * 100)
         result = refiner(
-            prompt=config.data.prompts.image_positive,
-            negative_prompt=config.data.prompts.image_negative,
+            prompt=_config.data.prompts.image_positive,
+            negative_prompt=_config.data.prompts.image_negative,
             image=latents,  # Use base model latents as input
-            num_inference_steps=config.data.generation.image.steps,
-            denoising_start=config.data.generation.image.base_fractal,
-            guidance_scale=config.data.generation.image.guidance,
+            num_inference_steps=_config.data.generation.image.steps,
+            denoising_start=_config.data.generation.image.base_fractal,
+            guidance_scale=_config.data.generation.image.guidance,
             generator=generator,
             output_type="pil"  # Final output is PIL image
         )
         image = result.images[0]
 
     # Save final image
-    image.save(output_path, quality=config.data.generation.image.save_quality)
+    image.save(output_path, quality=_config.data.generation.image.save_quality)
 
     return output_path
 
 
-def main() -> None:
+def _main() -> None:
     """ Main entry point """
     try:
-        output_path = generate_image()
-        logger.info("Success! Image generated: %s", output_path)
+        output_path = _generate_image()
+        _logger.info("Success! Image generated: %s", output_path)
     except ImportError as e:
-        logger.error("Failed to import required libraries: %s", e)
+        _logger.error("Failed to import required libraries: %s", e)
         sys.exit(1)
     except OSError as e:
-        logger.error("File system error (check permissions and disk space): %s", e)
+        _logger.error("File system error (check permissions and disk space): %s", e)
         sys.exit(1)
     except RuntimeError as e:
-        logger.error("Runtime error during image generation: %s", e)
+        _logger.error("Runtime error during image generation: %s", e)
         sys.exit(1)
     except ValueError as e:
-        logger.error("Configuration or input validation error: %s", e)
-        sys.exit(1)
-    except Exception as e:
-        logger.error("Unexpected error: %s", e)
+        _logger.error("Configuration or input validation error: %s", e)
         sys.exit(1)
 
 
 if __name__ == "__main__":
-    main()
+    _main()

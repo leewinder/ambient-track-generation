@@ -9,7 +9,7 @@ result/
 authentication.json
 .cursorignore
 .cursorrules
-config.json
+generation.json
 
 # Python
 __pycache__/

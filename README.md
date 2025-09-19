@@ -35,20 +35,16 @@ This will set up the various Python virtual environments and install packages et
 &nbsp; 
 ### Authentication set up
 
-Create an authentication config in the root folder as `authentication.json`, and add your Hugging Face token (it only needs read access)
-   ```
-   {
-     "huggingface": <your hugging face token>
-   }
-   ```
+Create an authentication config in the root folder as `authentication.json`, and add your Hugging Face token (it only needs read access).  Easiest way to do this is to copy the `authentication_example.json` and rename it to `authentication.json` and add your token.  
+
 When you first run the script, it might fail saying you need to accept the terms of the model being used.  Jump over to the URL it provides, accept the terms (if you want to) and run it again
 
 &nbsp; 
-### Create your config file
+### Create your generation file
 
-Easiest way to do this is to copy the `config_example.json` and rename it to `config.json`.  
+Easiest way to do this is to copy the `generation_example.json` and rename it to `generation.json`.  
 
-At this point, the only thing I would suggest changing in your config file would be the `image_positive` and `image_negative` values, and possibly the `seed` value, which is currently fixed so the same prompt will generate the same image.  If you want it to change each time, remove that field entirely.
+At this point, the only thing I would suggest changing in your file would be the `image_positive` and `image_negative` values, and possibly the `seed` value, which is currently fixed so the same prompt will generate the same image.  If you want it to change each time, remove that field entirely.
 
 &nbsp; 
 ### Run the script
@@ -60,7 +56,7 @@ Since there's only one script at the moment...
    ```
 &nbsp; 
 ## Sample Output
-Very little at the moment!  If you haven't changed anything in the config file other than the positive and negative prompts, it'll create an image in `/result/temp/01_initial_image.png`
+Very little at the moment!  If you haven't changed anything in the generation file other than the positive and negative prompts, it'll create an image in `/result/temp/01_initial_image.png`
 
 &nbsp; 
 ## Troubleshooting
