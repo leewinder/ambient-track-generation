@@ -22,8 +22,7 @@ _config = generation.load_generation_config(_args.config)
 
 _logger = logging_utils.setup_pipeline_logging(
     log_file=_args.log_file,
-    debug=_config.data.debug,
-    script_name="Image Generation"
+    debug=_config.data.debug
 )
 
 
