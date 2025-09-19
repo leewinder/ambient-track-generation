@@ -4,6 +4,9 @@
 import torch
 from diffusers import DiffusionPipeline
 
+# Valid device types for SDXL operations
+VALID_DEVICES = {"cuda", "mps", "cpu"}
+
 
 def get_device() -> str:
     """ Select the best available compute device: MPS (Apple), CUDA (NVIDIA), or CPU fallback """
@@ -19,6 +22,9 @@ def get_device() -> str:
 
 def get_optimal_dtype(device: str) -> torch.dtype:
     """ Get the optimal data type for the given device """
+    if device not in VALID_DEVICES:
+        raise ValueError(f"Invalid device '{device}'. Must be one of: {', '.join(VALID_DEVICES)}")
+
     if device == "cuda":
         return torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
     return torch.float32
@@ -26,6 +32,9 @@ def get_optimal_dtype(device: str) -> torch.dtype:
 
 def optimize_pipeline(pipeline: DiffusionPipeline, device: str) -> None:
     """ Apply standard memory and compute optimizations to a diffusion pipeline """
+    if device not in VALID_DEVICES:
+        raise ValueError(f"Invalid device '{device}'. Must be one of: {', '.join(VALID_DEVICES)}")
+
     # Enable CPU offloading for CUDA devices to save VRAM
     if device == "cuda":
         if hasattr(pipeline, "enable_model_cpu_offload"):
@@ -38,4 +47,10 @@ def optimize_pipeline(pipeline: DiffusionPipeline, device: str) -> None:
 
 def create_generator(device: str, seed: int) -> torch.Generator:
     """ Create a seeded random generator for the specified device """
+    if device not in VALID_DEVICES:
+        raise ValueError(f"Invalid device '{device}'. Must be one of: {', '.join(VALID_DEVICES)}")
+
+    if seed < 0:
+        raise ValueError(f"Seed must be non-negative, got: {seed}")
+
     return torch.Generator(device=device).manual_seed(seed)

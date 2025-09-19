@@ -17,7 +17,7 @@ sys.path.insert(0, str(common_path))
 
 # fmt: off
 # noqa: E402,E501  # pylint: disable-next=import-error,wrong-import-position,multiple-imports
-import authentication, config, args, sdxl
+import authentication, config, args, sdxl_utils as sdxl
 # fmt: on
 
 authentication = authentication.load_authentication()
@@ -29,7 +29,8 @@ def generate_image() -> Path:
     """ Generate an image using SDXL Base + Refiner pipelines with a 2-step denoising process """
 
     # Ensure output folder exists
-    output_path = Path(args.output) / config.result_dir / config.temp_dir / config.output_stage_01
+    output_path = Path(args.output) / config.data.paths.result_dir / \
+        config.data.paths.temp_dir / config.data.paths.outputs.stage_01
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     print("\n\n-------- SETTING UP STABLE DIFFUSION XL (Base + Refiner) --------")
@@ -48,7 +49,7 @@ def generate_image() -> Path:
         base_model_id,
         torch_dtype=dtype,
         use_safetensors=True,
-        token=authentication.huggingface_token,
+        token=authentication.data.huggingface,
         add_watermarker=False
     ).to(device)
 
@@ -58,7 +59,7 @@ def generate_image() -> Path:
         refiner_model_id,
         torch_dtype=dtype,
         use_safetensors=True,
-        token=authentication.huggingface_token,
+        token=authentication.data.huggingface,
         add_watermarker=False
     ).to(device)
 
@@ -74,38 +75,39 @@ def generate_image() -> Path:
 
     with torch.no_grad():
 
-        generator = sdxl.create_generator(device, config.generation_seed)
+        generator = sdxl.create_generator(device, config.data.generation.seed)
 
         print("Using generation properties of:")
         print(f"  * Device: {device}")
-        print(f"  * Seed: {config.generation_seed}")
-        print(f"  * Generation Steps: {config.image_generation_steps}")
-        print(f"  * Base Fractal: {config.image_base_fractal}")
-        print(f"  * Guidance Scale: {config.image_guidance}")
+        print(f"  * Seed: {config.data.generation.seed}")
+        print(f"  * Generation Steps: {config.data.generation.image.steps}")
+        print(f"  * Base Fractal: {config.data.generation.image.base_fractal}")
+        print(f"  * Guidance Scale: {config.data.generation.image.guidance}")
 
         # Step 1: Base model generates coarse latents
-        print(f"Running base model for {config.image_base_fractal * 100}% of steps...")
+        print(f"Running base model for {config.data.generation.image.base_fractal * 100}% of steps...")
         latents = pipe(
-            prompt=config.image_prompt_positive,
-            negative_prompt=config.image_prompt_negative,
-            width=config.image_width,
-            height=config.image_height,
-            num_inference_steps=config.image_generation_steps,
-            denoising_end=config.image_base_fractal,
-            guidance_scale=config.image_guidance,
+            prompt=config.data.prompts.image_positive,
+            negative_prompt=config.data.prompts.image_negative,
+            width=config.data.dimensions.image.width,
+            height=config.data.dimensions.image.height,
+            num_inference_steps=config.data.generation.image.steps,
+            denoising_end=config.data.generation.image.base_fractal,
+            guidance_scale=config.data.generation.image.guidance,
             generator=generator,
             output_type="latent"  # Output latents, not a PIL image
         ).images
 
         # Step 2: Refiner model completes image generation
-        print(f"Running refiner model for the remaining {(1 - config.image_base_fractal) * 100}% of steps...")
+        print(
+            f"Running refiner model for the remaining {(1 - config.data.generation.image.base_fractal) * 100}% of steps...")
         result = refiner(
-            prompt=config.image_prompt_positive,
-            negative_prompt=config.image_prompt_negative,
+            prompt=config.data.prompts.image_positive,
+            negative_prompt=config.data.prompts.image_negative,
             image=latents,  # Use base model latents as input
-            num_inference_steps=config.image_generation_steps,
-            denoising_start=config.image_base_fractal,
-            guidance_scale=config.image_guidance,
+            num_inference_steps=config.data.generation.image.steps,
+            denoising_start=config.data.generation.image.base_fractal,
+            guidance_scale=config.data.generation.image.guidance,
             generator=generator,
             output_type="pil"  # Final output is PIL image
         )
