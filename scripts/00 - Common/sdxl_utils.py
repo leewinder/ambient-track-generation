@@ -3,6 +3,10 @@
 
 import torch
 from diffusers import DiffusionPipeline
+import logging_utils
+
+# Module-level logger
+logger = logging_utils.get_logger("SDXL")
 
 
 # Device constants
@@ -20,12 +24,12 @@ VALID_DEVICES = {Devices.CUDA, Devices.MPS, Devices.CPU}
 def get_device() -> str:
     """ Select the best available compute device: MPS (Apple), CUDA (NVIDIA), or CPU fallback """
     if torch.backends.mps.is_available():
-        print("Using MPS (Apple Silicon) for acceleration")
+        logger.info("Using MPS (Apple Silicon) for acceleration")
         return Devices.MPS
     if torch.cuda.is_available():
-        print("Using CUDA for acceleration")
+        logger.info("Using CUDA for acceleration")
         return Devices.CUDA
-    print("Using CPU (no GPU acceleration available)")
+    logger.info("Using CPU (no GPU acceleration available)")
     return Devices.CPU
 
 
@@ -44,14 +48,18 @@ def optimize_pipeline(pipeline: DiffusionPipeline, device: str) -> None:
     if device not in VALID_DEVICES:
         raise ValueError(f"Invalid device '{device}'. Must be one of: {', '.join(VALID_DEVICES)}")
 
+    logger.debug("Optimizing pipeline for device: %s", device)
+
     # Enable CPU offloading for CUDA devices to save VRAM
     if device == Devices.CUDA:
         if hasattr(pipeline, "enable_model_cpu_offload"):
             pipeline.enable_model_cpu_offload()
+            logger.debug("Enabled CPU offloading for CUDA device")
 
     # Enable attention slicing to reduce memory usage
     if hasattr(pipeline, "enable_attention_slicing"):
         pipeline.enable_attention_slicing()
+        logger.debug("Enabled attention slicing for memory optimization")
 
 
 def create_generator(device: str, seed: int) -> torch.Generator:
@@ -62,4 +70,5 @@ def create_generator(device: str, seed: int) -> torch.Generator:
     if seed < 0:
         raise ValueError(f"Seed must be non-negative, got: {seed}")
 
+    logger.debug("Creating generator for device %s with seed %d", device, seed)
     return torch.Generator(device=device).manual_seed(seed)

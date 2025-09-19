@@ -17,12 +17,19 @@ sys.path.insert(0, str(common_path))
 
 # fmt: off
 # noqa: E402,E501  # pylint: disable-next=import-error,wrong-import-position,multiple-imports
-import authentication, config, args, sdxl_utils as sdxl
+import authentication, config, args, sdxl_utils as sdxl, logging_utils
 # fmt: on
 
 authentication = authentication.load_authentication()
 config = config.load_config()
 args = args.parse_arguments("Generates an image using Stable Diffusion XL")
+
+# Setup logging using config debug flag
+logger = logging_utils.setup_pipeline_logging(
+    log_file=args.log_file,
+    debug=config.data.debug,
+    script_name="Image Generation"
+)
 
 
 def generate_image() -> Path:
@@ -33,7 +40,7 @@ def generate_image() -> Path:
         config.data.paths.temp_dir / config.data.paths.outputs.stage_01
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    print("\n\n-------- SETTING UP STABLE DIFFUSION XL (Base + Refiner) --------")
+    logger.info("-------- SETTING UP STABLE DIFFUSION XL (Base + Refiner) --------")
 
     # Determine device and preferred precision
     device = sdxl.get_device()
@@ -43,7 +50,7 @@ def generate_image() -> Path:
     base_model_id = "stabilityai/stable-diffusion-xl-base-1.0"
     refiner_model_id = "stabilityai/stable-diffusion-xl-refiner-1.0"
 
-    print("Loading SDXL base pipeline (this will take a while the first time)...")
+    logger.info("Loading SDXL base pipeline (this will take a while the first time)")
     # Load Base Pipeline: generates coarse image latents
     pipe = StableDiffusionXLPipeline.from_pretrained(
         base_model_id,
@@ -53,7 +60,7 @@ def generate_image() -> Path:
         add_watermarker=False
     ).to(device)
 
-    print("Loading SDXL refiner pipeline...")
+    logger.info("Loading SDXL refiner pipeline")
     # Load Refiner Pipeline: refines the latents into a final high-quality image
     refiner = StableDiffusionXLImg2ImgPipeline.from_pretrained(
         refiner_model_id,
@@ -71,21 +78,21 @@ def generate_image() -> Path:
     pipe.scheduler = EulerDiscreteScheduler.from_config(pipe.scheduler.config)
     refiner.scheduler = EulerDiscreteScheduler.from_config(refiner.scheduler.config)
 
-    print("\n\n-------- GENERATING IMAGE (2-Step) --------")
+    logger.info("-------- GENERATING IMAGE (2-Step) --------")
 
     with torch.no_grad():
 
         generator = sdxl.create_generator(device, config.data.generation.seed)
 
-        print("Using generation properties of:")
-        print(f"  * Device: {device}")
-        print(f"  * Seed: {config.data.generation.seed}")
-        print(f"  * Generation Steps: {config.data.generation.image.steps}")
-        print(f"  * Base Fractal: {config.data.generation.image.base_fractal}")
-        print(f"  * Guidance Scale: {config.data.generation.image.guidance}")
+        logger.info("Using generation properties:")
+        logger.info("  Device: %s", device)
+        logger.info("  Seed: %d", config.data.generation.seed)
+        logger.info("  Generation Steps: %d", config.data.generation.image.steps)
+        logger.info("  Base Fractal: %.2f", config.data.generation.image.base_fractal)
+        logger.info("  Guidance Scale: %.1f", config.data.generation.image.guidance)
 
         # Step 1: Base model generates coarse latents
-        print(f"Running base model for {config.data.generation.image.base_fractal * 100}% of steps...")
+        logger.info("Running base model for %.1f%% of steps", config.data.generation.image.base_fractal * 100)
         latents = pipe(
             prompt=config.data.prompts.image_positive,
             negative_prompt=config.data.prompts.image_negative,
@@ -99,8 +106,8 @@ def generate_image() -> Path:
         ).images
 
         # Step 2: Refiner model completes image generation
-        print(
-            f"Running refiner model for the remaining {(1 - config.data.generation.image.base_fractal) * 100}% of steps...")
+        logger.info("Running refiner model for the remaining %.1f%% of steps",
+                    (1 - config.data.generation.image.base_fractal) * 100)
         result = refiner(
             prompt=config.data.prompts.image_positive,
             negative_prompt=config.data.prompts.image_negative,
@@ -123,7 +130,7 @@ def main() -> None:
     """ Main entry point """
     try:
         output_path = generate_image()
-        print(f"\nSuccess! Image generated: {output_path}")
+        logger.info("Success! Image generated: %s", output_path)
     except (ImportError, OSError, RuntimeError, ValueError) as e:
         print(f"\nError: {e}")
         sys.exit(1)

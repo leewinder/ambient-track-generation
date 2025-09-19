@@ -5,6 +5,7 @@ import time
 
 from pydantic import Field
 from pydantic_utils import StrictBaseModel, JsonFileLoader, create_loader_function
+import logging_utils
 
 # Pydantic models for structured configuration
 
@@ -17,8 +18,8 @@ class PromptsConfig(StrictBaseModel):
 
 class ImageDimensionsConfig(StrictBaseModel):
     """ Configuration for image dimensions """
-    width: int = Field(1024, ge=1024, le=1024, description="Image width in pixels")
-    height: int = Field(1024, ge=1024, le=1024, description="Image height in pixels")
+    width: int = Field(1024, ge=64, le=4096, description="Image width in pixels")
+    height: int = Field(1024, ge=64, le=4096, description="Image height in pixels")
 
 
 class DimensionsConfig(StrictBaseModel):
@@ -79,6 +80,8 @@ class Config(JsonFileLoader):
 
     def __init__(self, config_path: str = "../../config.json"):
         """ Initialize the config by loading from the specified path """
+        logger = logging_utils.get_logger(__name__)
+        logger.debug("Loading configuration from: %s", config_path)
         super().__init__(config_path, ConfigData)
 
     @property

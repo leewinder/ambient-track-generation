@@ -20,6 +20,12 @@ class BaseArgumentParser:
             help='Output folder used to store all temp and generated content',
             required=True
         )
+        self.parser.add_argument(
+            '--log-file',
+            type=str,
+            default='pipeline.log',
+            help='Log file path (default: pipeline.log)'
+        )
 
     def parse(self) -> argparse.Namespace:
         """ Parse and return the command line arguments """

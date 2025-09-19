@@ -5,6 +5,7 @@ import re
 
 from pydantic import Field, field_validator
 from pydantic_utils import StrictBaseModel, JsonFileLoader, create_loader_function
+import logging_utils
 
 # Regex pattern for Hugging Face token validation
 HF_TOKEN_PATTERN = r'^hf_[a-zA-Z0-9]{30,40}$'
@@ -33,6 +34,8 @@ class Authentication(JsonFileLoader):
 
     def __init__(self, authentication_path: str = "../../authentication.json"):
         """ Initialize the authentication by loading from the specified path """
+        logger = logging_utils.get_logger(__name__)
+        logger.debug("Loading authentication from: %s", authentication_path)
         super().__init__(authentication_path, AuthenticationData)
 
     @property
