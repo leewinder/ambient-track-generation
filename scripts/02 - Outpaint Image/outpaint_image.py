@@ -36,12 +36,19 @@ sys.path.insert(0, str(common_path))
 
 # fmt: off
 # noqa: E402,E501  # pylint: disable-next=import-error,wrong-import-position,multiple-imports
-import authentication, config, args, sdxl_utils as sdxl
+import authentication, config, args, sdxl_utils as sdxl, logging_utils
 # fmt: on
 
 authentication = authentication.load_authentication()
 config = config.load_config()
 args = args.parse_arguments("Outpaints a given image using Stable Diffusion")
+
+# Setup logging using config debug flag
+logger = logging_utils.setup_pipeline_logging(
+    log_file=args.log_file,
+    debug=config.data.debug,
+    script_name="ImageOutpainter"
+)
 
 # Suppress the informational warnings from the diffusers library
 logging.getLogger('diffusers').setLevel(logging.ERROR)
@@ -105,7 +112,7 @@ def prime_canvas_with_smear(source_image: Image.Image, dimensions: Dimensions) -
     """ Creates a new canvas and primes it for outpainting by smearing the edges of the source image """
     working_expansion_per_side = (dimensions.working.width - dimensions.source.width) // 2
 
-    print("Creating and priming the canvas for outpainting...")
+    logger.info("Creating and priming the canvas for outpainting")
 
     # Create a new canvas and paste the source image into the center
     final_canvas = Image.new("RGB", (dimensions.working.width, dimensions.working.height))
@@ -137,12 +144,13 @@ def save_interim_result(interim_image: Image.Image, name: str) -> None:
             config.data.paths.temp_dir / internal_temp_folder / f"{name}.png"
         interim_path.parent.mkdir(parents=True, exist_ok=True)
         interim_image.save(interim_path)
+        logger.debug("Saved interim result: %s", interim_path)
 
 
 def outpaint_image() -> str:
     """ Generates a new out painted image from a pre-created image """
 
-    print("\n\n-------- IDENTIFYING SOURCE IMAGE AND OUTPUT --------")
+    logger.header("Identifying Source Image and Output")
 
     # Verify our source image exists
     source_image_path = Path(args.output) / config.data.paths.result_dir / \
@@ -163,17 +171,17 @@ def outpaint_image() -> str:
     # Calculate feather size (2% of image width)
     feather_size = max(1, int(dimensions.source.width * (config.data.generation.outpaint.feathering / 100.0)))
 
-    print("The following properties will be used as part of the outpainting process")
-    print(f"  * Source image: {dimensions.source.width}x{dimensions.source.height}")
-    print(f"  * Target image: {dimensions.target.width}x{dimensions.target.height}")
-    print(f"  * Working image: {dimensions.working.width}x{dimensions.working.height}")
-    print(f"  * Working expansion per side: {working_expansion_per_side}px")
-    print(f"  * Feather size: {config.data.generation.outpaint.feathering}%")
-    print(f"  * Steps: {config.data.generation.outpaint.steps}")
-    print(f"  * Guidance: {config.data.generation.outpaint.guidance}")
+    logger.debug("The following properties will be used as part of the outpainting process")
+    logger.debug("  Source image: %dx%d", dimensions.source.width, dimensions.source.height)
+    logger.debug("  Target image: %dx%d", dimensions.target.width, dimensions.target.height)
+    logger.debug("  Working image: %dx%d", dimensions.working.width, dimensions.working.height)
+    logger.debug("  Working expansion per side: %dpx", working_expansion_per_side)
+    logger.debug("  Feather size: %.1f%%", config.data.generation.outpaint.feathering)
+    logger.debug("  Steps: %d", config.data.generation.outpaint.steps)
+    logger.debug("  Guidance: %.1f", config.data.generation.outpaint.guidance)
 
-    print("\n\n-------- SETTING UP STABLE DIFFUSION INPAINTING PIPELINE --------")
-    print("Loading SDXL inpainting pipeline (this will take a while the first time)...")
+    logger.header("Setting up Stable Diffusion Inpainting Pipeline")
+    logger.info("Loading SDXL inpainting pipeline (this will take a while the first time)")
     # Determine device and preferred precision
     device = sdxl.get_device()
     dtype = sdxl.get_optimal_dtype(device)
@@ -189,13 +197,13 @@ def outpaint_image() -> str:
     # Optimize pipeline for memory and compute efficiency
     sdxl.optimize_pipeline(pipe, device)
 
-    print("\n\n-------- OUT PAINTING IMAGE --------")
+    logger.header("Outpainting Image")
 
     # Create and prime the canvas using our new function
     final_canvas = prime_canvas_with_smear(source_image, dimensions)
     save_interim_result(final_canvas, "widened")
 
-    print("Outpainting right side...")
+    logger.info("Outpainting right side")
 
     # Create mask for right side (mask should cover the right expansion area + overlap)
     # Extend mask into original image area for proper blending
@@ -224,7 +232,7 @@ def outpaint_image() -> str:
         ).images[0]
     save_interim_result(right_result, "right_result")
 
-    print("Outpainting left side...")
+    logger.info("Outpainting left side")
 
     # Create mask for left side (mask should cover the left expansion area + overlap)
     # Extend mask into original image area for proper blending
@@ -250,7 +258,7 @@ def outpaint_image() -> str:
     save_interim_result(left_result, "left_result")
 
     # Crop the result to exact 16:9 ratio (remove the 5% extra on each side)
-    print("Cropping to exact 16:9 ratio...")
+    logger.info("Cropping to exact 16:9 ratio")
     crop_x = (dimensions.working.width - dimensions.target.width) // 2
     crop_box = (crop_x, 0, crop_x + dimensions.target.width, dimensions.target.height)
     final_result = left_result.crop(crop_box)
@@ -268,9 +276,9 @@ def main() -> None:
     """ Main entry point """
     try:
         output_path = outpaint_image()
-        print(f"\nSuccess! Image out painted: {output_path}")
+        logger.info("Success! Image out painted: %s", output_path)
     except (ImportError, OSError, RuntimeError, ValueError) as e:
-        print(f"\nError: {e}")
+        logger.error("Error: %s", e)
         sys.exit(1)
 
 

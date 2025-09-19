@@ -40,7 +40,7 @@ def generate_image() -> Path:
         config.data.paths.temp_dir / config.data.paths.outputs.stage_01
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    logger.info("-------- SETTING UP STABLE DIFFUSION XL (Base + Refiner) --------")
+    logger.header("Setting up Stable Diffusion XL (Base + Refiner)")
 
     # Determine device and preferred precision
     device = sdxl.get_device()
@@ -78,18 +78,18 @@ def generate_image() -> Path:
     pipe.scheduler = EulerDiscreteScheduler.from_config(pipe.scheduler.config)
     refiner.scheduler = EulerDiscreteScheduler.from_config(refiner.scheduler.config)
 
-    logger.info("-------- GENERATING IMAGE (2-Step) --------")
+    logger.header("Generating Image (2-Step)")
 
     with torch.no_grad():
 
         generator = sdxl.create_generator(device, config.data.generation.seed)
 
-        logger.info("Using generation properties:")
-        logger.info("  Device: %s", device)
-        logger.info("  Seed: %d", config.data.generation.seed)
-        logger.info("  Generation Steps: %d", config.data.generation.image.steps)
-        logger.info("  Base Fractal: %.2f", config.data.generation.image.base_fractal)
-        logger.info("  Guidance Scale: %.1f", config.data.generation.image.guidance)
+        logger.debug("Using generation properties:")
+        logger.debug("  Device: %s", device)
+        logger.debug("  Seed: %d", config.data.generation.seed)
+        logger.debug("  Generation Steps: %d", config.data.generation.image.steps)
+        logger.debug("  Base Fractal: %.2f", config.data.generation.image.base_fractal)
+        logger.debug("  Guidance Scale: %.1f", config.data.generation.image.guidance)
 
         # Step 1: Base model generates coarse latents
         logger.info("Running base model for %.1f%% of steps", config.data.generation.image.base_fractal * 100)
