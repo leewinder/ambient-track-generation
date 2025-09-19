@@ -71,7 +71,7 @@ class ConfigData(StrictBaseModel):
     class Config:
         """ Pydantic configuration for ConfigData model """
         # Allow field aliases (like "01" -> "stage_01")
-        allow_population_by_field_name = True
+        populate_by_name = True
 
 
 class Config(JsonFileLoader):
