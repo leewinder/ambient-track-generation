@@ -267,7 +267,7 @@ def outpaint_image() -> str:
     final_output_path = Path(args.output) / config.data.paths.result_dir / \
         config.data.paths.temp_dir / config.data.paths.outputs.stage_02
     final_output_path.parent.mkdir(parents=True, exist_ok=True)
-    final_result.save(final_output_path)
+    final_result.save(final_output_path, quality=config.data.generation.outpaint.save_quality)
 
     return str(final_output_path)
 

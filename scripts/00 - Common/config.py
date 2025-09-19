@@ -32,6 +32,7 @@ class ImageGenerationConfig(StrictBaseModel):
     steps: int = Field(50, ge=1, le=200, description="Number of inference steps")
     base_fractal: float = Field(0.8, ge=0.1, le=0.9, description="Fraction of steps for base model")
     guidance: float = Field(6.0, ge=0, le=50, description="Guidance scale for generation")
+    save_quality: int = Field(95, ge=1, le=100, description="Save quality indicator for the final saved image")
 
 
 class OutpaintConfig(StrictBaseModel):
@@ -39,6 +40,7 @@ class OutpaintConfig(StrictBaseModel):
     steps: int = Field(50, ge=1, le=200, description="Number of inference steps for outpainting")
     guidance: float = Field(6.0, ge=0, le=50, description="Guidance scale for outpainting")
     feathering: float = Field(6.0, ge=0, le=10, description="Feathering percentage at edges")
+    save_quality: int = Field(95, ge=1, le=100, description="Save quality indicator for the final saved image")
 
 
 class GenerationConfig(StrictBaseModel):

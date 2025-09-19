@@ -36,8 +36,10 @@ def generate_image() -> Path:
     """ Generate an image using SDXL Base + Refiner pipelines with a 2-step denoising process """
 
     # Ensure output folder exists
-    output_path = Path(args.output) / config.data.paths.result_dir / \
-        config.data.paths.temp_dir / config.data.paths.outputs.stage_01
+    output_path = (Path(args.output) /
+                   config.data.paths.result_dir /
+                   config.data.paths.temp_dir /
+                   config.data.paths.outputs.stage_01)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     logger.header("Setting up Stable Diffusion XL (Base + Refiner)")
@@ -121,7 +123,7 @@ def generate_image() -> Path:
         image = result.images[0]
 
     # Save final image
-    image.save(output_path, quality=95)
+    image.save(output_path, quality=config.data.generation.image.save_quality)
 
     return output_path
 
@@ -131,8 +133,17 @@ def main() -> None:
     try:
         output_path = generate_image()
         logger.info("Success! Image generated: %s", output_path)
-    except (ImportError, OSError, RuntimeError, ValueError) as e:
-        print(f"\nError: {e}")
+    except ImportError as e:
+        logger.error("Failed to import required libraries: %s", e)
+        sys.exit(1)
+    except OSError as e:
+        logger.error("File system error (check permissions and disk space): %s", e)
+        sys.exit(1)
+    except RuntimeError as e:
+        logger.error("Runtime error during image generation: %s", e)
+        sys.exit(1)
+    except ValueError as e:
+        logger.error("Configuration or input validation error: %s", e)
         sys.exit(1)
 
 
