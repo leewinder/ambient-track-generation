@@ -22,7 +22,7 @@ import authentication, config, args, sdxl_utils as sdxl
 
 authentication = authentication.load_authentication()
 config = config.load_config()
-args = args.parse_common_arguments("Generates an image using Stable Diffusion XL")
+args = args.parse_arguments("Generates an image using Stable Diffusion XL")
 
 
 def generate_image() -> Path:

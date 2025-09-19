@@ -41,7 +41,7 @@ import authentication, config, args, sdxl_utils as sdxl
 
 authentication = authentication.load_authentication()
 config = config.load_config()
-args = args.parse_common_arguments("Outpaints a given image using Stable Diffusion")
+args = args.parse_arguments("Outpaints a given image using Stable Diffusion")
 
 # Suppress the informational warnings from the diffusers library
 logging.getLogger('diffusers').setLevel(logging.ERROR)
