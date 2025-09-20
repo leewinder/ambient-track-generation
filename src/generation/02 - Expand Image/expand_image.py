@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """
 Stable Diffusion Out Painter
-Takes a pre-generated image and widens it to support 16:9
+Takes a pre-generated image and expands it to 1080p
 """
+
 import sys
 from pathlib import Path
+from dataclasses import dataclass
 from PIL import Image
 import torch
 from diffusers import StableDiffusionXLInpaintPipeline
@@ -27,26 +29,28 @@ class _Side:
     BOTTOM = "bottom"
 
 
-class _Dimensions:
-    """ Container for image dimensions used in outpainting process """
-
-    def __init__(self, source_width: int, source_height: int,
-                 target_width: int, target_height: int,
-                 working_width: int, working_height: int) -> None:
-        self.source = _DimensionPair(source_width, source_height)
-        self.target = _DimensionPair(target_width, target_height)
-        self.working = _DimensionPair(working_width, working_height)
-
-
+@dataclass(frozen=True, slots=True)
 class _DimensionPair:
-    """ Container for width and height pair """
+    width: int
+    height: int
 
-    def __init__(self, width: int, height: int) -> None:
-        self.width = width
-        self.height = height
+    def __post_init__(self) -> None:
+        if self.width <= 0 or self.height <= 0:
+            raise ValueError("Dimensions must be positive")
 
 
-_args = args.parse_arguments("Outpaints a given image using Stable Diffusion")
+@dataclass(frozen=True, slots=True)
+class _Dimensions:
+    source: _DimensionPair
+    target: _DimensionPair
+    working: _DimensionPair
+
+    def __post_init__(self) -> None:
+        if self.working.width < self.target.width or self.working.height < self.target.height:
+            raise ValueError("Working dimensions must be larger than target dimensions")
+
+
+_args = args.parse_arguments("Expands a given image using Stable Diffusion's inpainting model")
 
 _authentication = authentication.load_authentication_config(_args.authentication)
 _config = generation.load_generation_config(_args.config)
@@ -66,6 +70,7 @@ def _calculate_target_dimensions(source_width: int, source_height: int) -> _Dime
     target_height = DEFAULT_IMAGE_HEIGHT
 
     # Calculate working dimensions (CANVAS_EXPANSION_PERCENT extra on each side + up to the next multiple of 8)
+    # This allows us to run at a multiple of 8, while also cropping down and removing the edge artifacts
     expansion_width = int(target_width * (CANVAS_EXPANSION_PERCENT / 100))
     expansion_height = int(target_height * (CANVAS_EXPANSION_PERCENT / 100))
 
@@ -78,12 +83,9 @@ def _calculate_target_dimensions(source_width: int, source_height: int) -> _Dime
     working_height = ((working_height + 7) // 8) * 8
 
     return _Dimensions(
-        source_width=source_width,
-        source_height=source_height,
-        target_width=target_width,
-        target_height=target_height,
-        working_width=working_width,
-        working_height=working_height
+        source=_DimensionPair(source_width, source_height),
+        target=_DimensionPair(target_width, target_height),
+        working=_DimensionPair(working_width, working_height)
     )
 
 
@@ -159,15 +161,8 @@ def _prime_canvas_with_smear(source_image: Image.Image, dimensions: _Dimensions,
 
 
 def _outpaint_side(side: _Side, dimensions: _Dimensions, generator: torch.Generator, pipeline: StableDiffusionXLInpaintPipeline, canvas: Image.Image) -> Image.Image:
-    """ Generates an out painted side for the image 
+    """ Generates an out painted side for the image """
 
-    Args:
-        side: Which side to outpaint (LEFT, RIGHT, TOP, BOTTOM)
-        dimensions: The dimensions of the canvas
-        generator: The torch generator for reproducibility
-        pipeline: The SDXL pipeline to use for outpainting
-        canvas: The current canvas to outpaint
-    """
     is_horizontal = side in [_Side.LEFT, _Side.RIGHT]
 
     # Calculate dimensions based on direction
@@ -314,7 +309,7 @@ def _outpaint_image() -> str:
     _logger.info("Outpainting bottom side")
     working_canvas = _outpaint_side(_Side.BOTTOM, dimensions, generator, pipe, working_canvas)
 
-    # Now handle horizontal expansion
+    # Now handle horizontal expansion using the vertically expanded image
     _logger.info("Setting up horizontal expansion canvas")
     working_canvas = _prime_canvas_with_smear(working_canvas, dimensions, horizontal_smear=True)
 
@@ -324,7 +319,7 @@ def _outpaint_image() -> str:
     _logger.info("Outpainting left side")
     working_canvas = _outpaint_side(_Side.LEFT, dimensions, generator, pipe, working_canvas)
 
-    # Crop to final target size
+    # Crop to final target size to remove any edge artifacts
     crop_left = (dimensions.working.width - dimensions.target.width) // 2
     crop_top = (dimensions.working.height - dimensions.target.height) // 2
     crop_right = crop_left + dimensions.target.width
