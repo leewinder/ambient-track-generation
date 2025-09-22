@@ -2,7 +2,7 @@
 
 
 # Ambient Track Generator
-This project creates atmospheric videos by combining AI-generated images, upscaling them, adding subtle animations, and AI-generated music.  Or at least it will do, one day - at the moment it just generates a nice 1024x1024 image!
+This project creates atmospheric videos by combining AI-generated images, upscaling them, adding subtle animations, and AI-generated music.  Or at least it will do, one day - at the moment it just generates a nice 1024x1024 image and then expands it to 1080p!
 
 &nbsp; 
 ## A Caveat
@@ -24,6 +24,21 @@ I haven't run this on anything other than an M4 Mac Mini with 64GB of RAM, your 
    git clone git@github.com:leewinder/ambient-track-generation.git
    cd ambient-track-generation
    ```
+
+&nbsp; 
+### Authentication set up
+
+Create an authentication config in the root folder as `authentication.json`, and add your Hugging Face token (it only needs read access).  Easiest way to do this is to copy the `authentication_example.json` and rename it to `authentication.json` and add your token.  
+
+When you first run the script, it might fail saying you need to accept the terms of the model being used.  Jump over to the URL it provides, accept the terms (if you want to) and run it again
+
+&nbsp; 
+### Create your generation file
+
+Easiest way to do this is to copy the `generation_example.json` and rename it to `generation.json`.  
+
+At this point, the only thing I would suggest changing in your file would be the `image_positive` and `image_negative` values, and possibly the `seed` value, which is currently fixed so the same prompt will generate the same image.  If you want it to change each time, remove that field entirely.
+
 &nbsp; 
 ### Run the installation script
 
@@ -32,35 +47,27 @@ This will set up the various Python virtual environments and install packages et
    bash ./install.sh
    ```
 
-&nbsp; 
-### Authentication set up
-
-Create an authentication config in the root folder as `authentication.json`, and add your Hugging Face token (it only needs read access)
-   ```
-   {
-     "huggingface": <your hugging face token>
-   }
-   ```
-When you first run the script, it might fail saying you need to accept the terms of the model being used.  Jump over to the URL it provides, accept the terms (if you want to) and run it again
-
-&nbsp; 
-### Create your config file
-
-Easiest way to do this is to copy the `config_example.json` and rename it to `config.json`.  
-
-At this point, the only thing I would suggest changing in your config file would be the `image_positive` and `image_negative` values, and possibly the `seed` value, which is currently fixed so the same prompt will generate the same image.  If you want it to change each time, remove that field entirely.
 
 &nbsp; 
 ### Run the script
 
-Since there's only one script at the moment...
+There's a handy generation script in the root of `src\` that will step through all the stages for you.  Simply run the following command
    ```
+   cd src/
+   source "venv/bin/activate"
+   python generate.py
+   ```
+
+If you want to run any of the stages independently, which is great for testing, you need to just jump into 
+```
    cd scripts/01\ -\ Generate\ Images/
+   source "venv/bin/activate"
    python generate_image.py --output <the path to the root of this project e.g. /Users/lee/Documents/Development/ambient-track-generation>
-   ```
+```
+
 &nbsp; 
 ## Sample Output
-Very little at the moment!  If you haven't changed anything in the config file other than the positive and negative prompts, it'll create an image in `/result/temp/01_initial_image.png`
+Very little at the moment!  If you haven't changed anything in the generation file other than the positive and negative prompts, it'll create a couple of images in `/result/temp/`
 
 &nbsp; 
 ## Troubleshooting
@@ -71,6 +78,7 @@ Very little at the moment!  If you haven't changed anything in the config file o
 &nbsp; 
 ## Models Used
 Image generation: [Stable Diffusion XL](https://stablediffusionxl.com/)
+Out Painting: [Stable Diffusion XL](https://huggingface.co/diffusers/stable-diffusion-xl-1.0-inpainting-0.1)
 
 &nbsp; 
 ## License

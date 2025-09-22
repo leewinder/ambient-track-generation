@@ -1,8 +1,14 @@
 #!/bin/bash
 set -e  # Exit on any error
 
-echo "Installing Image Generation Script"
-echo "=================================="
+echo ""
+echo ""
+echo "==================================================="
+echo "= Setting up ambient track generation environment ="
+echo "==================================================="
+
+echo ""
+echo "***** Verifying and setting up Python environment *****"
 
 # Check if pyenv is installed (REQUIRED)
 if ! command -v pyenv &> /dev/null; then
@@ -41,32 +47,72 @@ if [[ ! "$python_version" =~ ^3\.11\. ]]; then
     exit 1
 fi
 
-# Navigate to image generation folder
-cd "scripts/01 - Generate Images"
+echo ""
+echo "***** Create per-stage virtual environments *****"
 
-# Create virtual environment if it doesn't exist
-if [ ! -d "venv" ]; then
+# Optional: folder to process (first argument)
+TARGET_FOLDER="$1"
+
+# Define folders
+folders=(
+    "src" 
+    "src/generation/01 - Generate Image" 
+    "src/generation/02 - Expand Image"
+)
+
+# Define requirements for each folder (space-separated strings)
+requirements_list=(
+    "requirements/requirements.txt"
+    "requirements/requirements-torch.txt requirements/requirements-all.txt"
+    "requirements/requirements-all.txt"
+)
+
+# Loop through folders
+for i in "${!folders[@]}"; do
+    folder="${folders[$i]}"
+
+    # Skip folders if TARGET_FOLDER is set and doesn't match
+    if [[ -n "$TARGET_FOLDER" && "$folder" != "$TARGET_FOLDER" ]]; then
+        continue
+    fi
+
+    reqs="${requirements_list[$i]}"
+
+    echo ""
+    echo "Setting up $folder..."
+    cd "$folder"
+
+    # Delete existing virtual environment if it exists
+    if [ -d "venv" ]; then
+        echo "Removing existing virtual environment..."
+        rm -rf venv
+    fi
+
+    # Create and activate virtual environment
     echo "Creating virtual environment..."
     python -m venv venv
-fi
+    source venv/bin/activate
 
-# Activate virtual environment
-echo "Activating virtual environment..."
-source venv/bin/activate
+    # Upgrade pip
+    echo "Upgrading pip..."
+    pip install --upgrade pip
 
-# Upgrade pip
-echo "Upgrading pip..."
-pip install --upgrade pip
+    # Install all requirements
+    for req_file in $reqs; do
+        echo "Installing requirements from $req_file..."
+        pip install -r "$req_file"
+    done
 
-# Install PyTorch (use pinned versions for this stage)
-echo "Installing PyTorch..."
-pip install -r requirements/requirements-torch.txt
+    # Deactivate
+    echo "Closing down virtual environment..."
+    deactivate
 
-# Install other requirements for this stage
-echo "Installing other dependencies..."
-pip install -r requirements/requirements-all.txt
+    cd - >/dev/null
+done
+
 
 echo ""
-echo "Installation complete!"
-echo "Activate the virtual environment with: source venv/bin/activate"
-echo "Then run: python generate_image.py"
+echo ""
+echo "All installations complete!"
+echo ""
+echo ""

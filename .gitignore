@@ -6,10 +6,11 @@ env/
 
 # Local
 result/
+output/
 authentication.json
 .cursorignore
 .cursorrules
-config.json
+generation.json
 
 # Python
 __pycache__/
@@ -42,6 +43,10 @@ MANIFEST
 pip-log.txt
 pip-delete-this-directory.txt
 
+# Pipeline logs
+pipeline.log
+*.log
+
 # Unit test / coverage reports
 htmlcov/
 .tox/
@@ -56,9 +61,6 @@ coverage.xml
 
 # Jupyter Notebook
 .ipynb_checkpoints
-
-# pyenv
-.python-version
 
 # Environment variables
 .env
