@@ -7,6 +7,7 @@ torchaudio==2.8.0
 diffusers==0.30.0
 transformers==4.44.0
 accelerate==0.34.0
+peft>=0.8.0
 
 # Image processing
 pillow==11.3.0

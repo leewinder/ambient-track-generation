@@ -176,9 +176,15 @@ def _generate_image() -> Path:
     _logger.info("Loading SDXL base pipeline (this will take a while the first time)")
     pipe = _load_image_model(StableDiffusionXLPipeline, base_model_id, dtype, device)
 
+    # Load LoRAs for base pipeline
+    sdxl.load_loras(pipe, _config.data.generation.image.base_loras, _authentication.data.huggingface)
+
     # Load Refiner Pipeline: refines the latents into a final high-quality image
     _logger.info("Loading SDXL refiner pipeline")
     refiner = _load_image_model(StableDiffusionXLImg2ImgPipeline, refiner_model_id, dtype, device)
+
+    # Load LoRAs for refiner pipeline
+    sdxl.load_loras(refiner, _config.data.generation.image.refiner_loras, _authentication.data.huggingface)
 
     # Optimize both pipelines for memory and compute efficiency
     sdxl.optimize_pipeline(pipe, device)
@@ -203,11 +209,16 @@ def _generate_image() -> Path:
         _logger.debug("  Base Checkpoint: %s", base_model_id)
         _logger.debug("  Refiner Checkpoint: %s", refiner_model_id)
 
+        # Pre-encode prompts to support longer prompts beyond 77 token limit
+        _logger.info("Encoding prompts for generation")
+        positive_embeds = sdxl.encode_long_prompt(pipe, _config.data.prompts.image_positive)
+        negative_embeds = sdxl.encode_long_prompt(pipe, _config.data.prompts.image_negative)
+
         # Step 1: Base model generates coarse latents
         _logger.info("Running base model for %.1f%% of steps", _config.data.generation.image.base_fractal * 100)
         latents = pipe(
-            prompt=_config.data.prompts.image_positive,
-            negative_prompt=_config.data.prompts.image_negative,
+            prompt_embeds=positive_embeds,
+            negative_prompt_embeds=negative_embeds,
             width=_DefaultProperties.OUTPUT_WIDTH,
             height=_DefaultProperties.OUTPUT_HEIGHT,
             num_inference_steps=_config.data.generation.image.steps,
@@ -221,8 +232,8 @@ def _generate_image() -> Path:
         _logger.info("Running refiner model for the remaining %.1f%% of steps",
                      (1 - _config.data.generation.image.base_fractal) * 100)
         result = refiner(
-            prompt=_config.data.prompts.image_positive,
-            negative_prompt=_config.data.prompts.image_negative,
+            prompt_embeds=positive_embeds,
+            negative_prompt_embeds=negative_embeds,
             image=latents,  # Use base model latents as input
             num_inference_steps=_config.data.generation.image.steps,
             denoising_start=_config.data.generation.image.base_fractal,

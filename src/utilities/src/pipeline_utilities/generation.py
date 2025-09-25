@@ -13,6 +13,7 @@ class Lora(StrictBaseModel):
     """ Configuration for a Lora model with ID and weight """
     lora: str = Field(..., min_length=1, description="Lora model identifier")
     weight: float = Field(..., description="Lora weight/strength")
+    repo: str = Field("", description="Optional repository for the LoRA")
 
 
 class PromptsConfig(StrictBaseModel):
