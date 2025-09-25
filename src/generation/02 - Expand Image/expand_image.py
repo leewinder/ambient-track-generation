@@ -178,13 +178,9 @@ def _create_seamless_central_mask(dimensions: _Dimensions) -> Image.Image:
 def _run_outpainting_model(pipeline: StableDiffusionXLInpaintPipeline, canvas: Image.Image, mask: Image.Image, generator: torch.Generator) -> Image.Image:
     """ Runs a single inpainting pass with the given canvas and mask """
     with torch.no_grad():
-        # Pre-encode prompts to support longer prompts beyond 77 token limit
-        positive_embeds = sdxl.encode_long_prompt(pipeline, _config.data.prompts.image_positive)
-        negative_embeds = sdxl.encode_long_prompt(pipeline, _config.data.prompts.image_negative)
-
         result = pipeline(
-            prompt_embeds=positive_embeds,
-            negative_prompt_embeds=negative_embeds,
+            prompt=_config.data.prompts.image_positive,
+            negative_prompt=_config.data.prompts.image_negative,
             image=canvas,
             mask_image=mask,
             num_inference_steps=_config.data.generation.outpaint.steps,

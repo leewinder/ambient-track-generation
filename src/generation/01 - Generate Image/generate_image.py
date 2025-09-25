@@ -209,16 +209,11 @@ def _generate_image() -> Path:
         _logger.debug("  Base Checkpoint: %s", base_model_id)
         _logger.debug("  Refiner Checkpoint: %s", refiner_model_id)
 
-        # Pre-encode prompts to support longer prompts beyond 77 token limit
-        _logger.info("Encoding prompts for generation")
-        positive_embeds = sdxl.encode_long_prompt(pipe, _config.data.prompts.image_positive)
-        negative_embeds = sdxl.encode_long_prompt(pipe, _config.data.prompts.image_negative)
-
         # Step 1: Base model generates coarse latents
         _logger.info("Running base model for %.1f%% of steps", _config.data.generation.image.base_fractal * 100)
         latents = pipe(
-            prompt_embeds=positive_embeds,
-            negative_prompt_embeds=negative_embeds,
+            prompt=_config.data.prompts.image_positive,
+            negative_prompt=_config.data.prompts.image_negative,
             width=_DefaultProperties.OUTPUT_WIDTH,
             height=_DefaultProperties.OUTPUT_HEIGHT,
             num_inference_steps=_config.data.generation.image.steps,
@@ -232,8 +227,8 @@ def _generate_image() -> Path:
         _logger.info("Running refiner model for the remaining %.1f%% of steps",
                      (1 - _config.data.generation.image.base_fractal) * 100)
         result = refiner(
-            prompt_embeds=positive_embeds,
-            negative_prompt_embeds=negative_embeds,
+            prompt=_config.data.prompts.image_positive,
+            negative_prompt=_config.data.prompts.image_negative,
             image=latents,  # Use base model latents as input
             num_inference_steps=_config.data.generation.image.steps,
             denoising_start=_config.data.generation.image.base_fractal,
