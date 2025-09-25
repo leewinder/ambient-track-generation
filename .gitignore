@@ -11,6 +11,7 @@ authentication.json
 .cursorignore
 .cursorrules
 generation.json
+prompts/
 
 # Python
 __pycache__/

@@ -228,8 +228,13 @@ def _outpaint_image() -> str:
 
     _logger.header("Setting up Stable Diffusion Inpainting")
     device = sdxl.get_device()
+
+    # Get checkpoint from configuration
+    checkpoint = _config.data.generation.outpaint.checkpoint
+    _logger.debug("Using inpainting checkpoint: %s", checkpoint)
+
     pipe = StableDiffusionXLInpaintPipeline.from_pretrained(
-        "diffusers/stable-diffusion-xl-1.0-inpainting-0.1",
+        checkpoint,
         torch_dtype=sdxl.get_optimal_dtype(device),
         use_safetensors=True,
         token=_authentication.data.huggingface,

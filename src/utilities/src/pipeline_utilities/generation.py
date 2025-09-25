@@ -9,6 +9,12 @@ from . import logging_utils
 
 
 # Pydantic models for structured generation
+class Lora(StrictBaseModel):
+    """ Configuration for a Lora model with ID and weight """
+    lora: str = Field(..., min_length=1, description="Lora model identifier")
+    weight: float = Field(..., description="Lora weight/strength")
+
+
 class PromptsConfig(StrictBaseModel):
     """ Configuration for image generation prompts """
     image_positive: str = Field(..., min_length=1, description="Positive prompt for image generation")
@@ -20,13 +26,20 @@ class ImageGenerationConfig(StrictBaseModel):
     steps: int = Field(50, ge=1, le=200, description="Number of inference steps")
     base_fractal: float = Field(0.8, ge=0.1, le=0.9, description="Fraction of steps for base model")
     guidance: float = Field(6.0, ge=0, le=50, description="Guidance scale for generation")
+    base_checkpoints: str = Field("stabilityai/stable-diffusion-xl-base-1.0", description="Base model checkpoint")
+    refiner_checkpoints: str = Field("stabilityai/stable-diffusion-xl-refiner-1.0",
+                                     description="Refiner model checkpoint")
+    base_loras: list[Lora] = Field(default_factory=list, description="Lora models for base generation")
+    refiner_loras: list[Lora] = Field(default_factory=list, description="Lora models for refiner generation")
 
 
 class OutpaintConfig(StrictBaseModel):
     """ Configuration for outpainting parameters """
     steps: int = Field(50, ge=1, le=200, description="Number of inference steps for outpainting")
     guidance: float = Field(6.0, ge=0, le=50, description="Guidance scale for outpainting")
-    feathering: float = Field(6.0, ge=0, le=10, description="Feathering percentage at edges")
+    checkpoint: str = Field("diffusers/stable-diffusion-xl-1.0-inpainting-0.1",
+                            description="Inpainting model checkpoint")
+    loras: list[Lora] = Field(default_factory=list, description="Lora models for outpainting")
 
 
 class GenerationConfig(StrictBaseModel):

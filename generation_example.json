@@ -6,11 +6,16 @@
     "image": {
       "steps": 50,
       "base_fractal": 0.8,
-      "guidance": 6
+      "guidance": 6,
+
+      "base_checkpoints": "stabilityai/stable-diffusion-xl-base-1.0",
+      "refiner_checkpoints": "stabilityai/stable-diffusion-xl-refiner-1.0"
     },
     "outpaint": {
       "steps": 35,
-      "guidance": 8
+      "guidance": 8,
+
+      "checkpoint": "diffusers/stable-diffusion-xl-1.0-inpainting-0.1"
     }
   },
 
