@@ -14,6 +14,7 @@
     }
   },
 
+  "name": "Hand Drawn Fantasy",
   "prompts": {
     "image_positive": "hand illustrated fantasy art, lone small traveler walking through towering stone archways, path leading to a dark brooding castle, dramatic scale, moody atmosphere, fine linework, ink and watercolor look, detailed storybook style, atmospheric perspective, high detail, evocative illustration",
     "image_negative": "photorealistic, hyperrealism, 3d render, low detail, flat colors, bright cheerful lighting, modern city, sci-fi, cartoonish, blurry, distorted, messy lines, overexposed, text, watermark, logo, signature"

@@ -20,5 +20,6 @@ autopep8==2.0.4
 # General
 pydantic==2.11.9
 
-# Utilities package (editable install)
+# Local packages
 -e ../../utilities
+-e ../../sdxl

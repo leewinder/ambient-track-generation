@@ -11,6 +11,7 @@ import sys
 import json
 import shutil
 import subprocess
+import argparse
 
 from datetime import datetime
 from pathlib import Path
@@ -24,6 +25,23 @@ from pipeline_utilities.paths import Paths
 
 class _PipelineConfigurationError(Exception):
     """ Custom exception for pipeline configuration errors. """
+
+
+def _parse_arguments() -> argparse.Namespace:
+    """ Parse command line arguments for the generation pipeline """
+    parser = argparse.ArgumentParser(
+        description="Main pipeline script for ambient track generation"
+    )
+
+    parser.add_argument(
+        '--max-stages', '-m',
+        type=int,
+        default=None,
+        help='Maximum number of stages to run (0 = no stages, 1 = stages 01-02, etc.). '
+             'If not specified, all stages will run. Negative numbers will cause an error.'
+    )
+
+    return parser.parse_args()
 
 
 def _prepare_workspace(log_path: Path, result_path: Path):
@@ -200,11 +218,28 @@ def _log_stages_found(logger: EnhancedLogger, stages: List[Tuple[str, Path]]) ->
 
 def _run_pipeline_stages(logger: EnhancedLogger, stages: List[Tuple[str, Path]], pipeline_log_path: Path,
                          generation_config_path: Path, authentication_config_path: Path,
-                         output_path: Path, debug: bool) -> int:
-    """ Run all pipeline stages and return count of successful stages """
+                         output_path: Path, debug: bool, max_stages: int | None = None) -> int:
+    """ Run pipeline stages and return count of successful stages """
     successful_stages = 0
 
-    for stage_name, stage_path in stages:
+    # Validate max_stages parameter
+    if max_stages is not None:
+        if max_stages < 0:
+            logger.error("max_stages cannot be negative: %d", max_stages)
+            raise _PipelineConfigurationError(f"max_stages cannot be negative: {max_stages}")
+
+        if max_stages == 0:
+            logger.info("max_stages=0 specified, skipping all stages")
+            return 0
+
+        # Limit stages to max_stages
+        stages_to_run = stages[:max_stages]
+        logger.info("Running %d of %d stages (max_stages=%d)", len(stages_to_run), len(stages), max_stages)
+    else:
+        stages_to_run = stages
+        logger.info("Running all %d stages", len(stages))
+
+    for stage_name, stage_path in stages_to_run:
         logger.info("")
         logger.info("=" * 40)
         logger.info("Running stage: %s", stage_name)
@@ -251,7 +286,12 @@ def _archive_run_results(logger: EnhancedLogger, output_path: Path,
                          generation_config: Generation) -> None:
     """ Archives the results and configuration of a pipeline run into a timestamped folder """
     try:
-        run_identifier = datetime.now().strftime("%Y.%m.%d - %H.%M.%S")
+        timestamp = datetime.now().strftime("%Y.%m.%d - %H.%M.%S")
+        name = generation_config.data.name.strip()
+        if name:
+            run_identifier = f"{timestamp} ({name})"
+        else:
+            run_identifier = timestamp
         archive_dir = output_path / "output" / run_identifier
         archive_dir.mkdir(parents=True, exist_ok=True)
 
@@ -304,6 +344,9 @@ def _archive_run_results(logger: EnhancedLogger, output_path: Path,
 
 def main():
     """ Main entry point for the generation pipeline """
+    # Parse command line arguments
+    args = _parse_arguments()
+
     # Set up paths that are needed for logging and archiving
     script_dir = Path(__file__).parent.absolute()
     pipeline_log_path = script_dir / "pipeline.log"
@@ -344,11 +387,17 @@ def main():
         # Run each stage in sequence
         successful_stages = _run_pipeline_stages(
             logger, stages, pipeline_log_path, generation_config_path,
-            authentication_config_path, output_path, generation_config.data.debug
+            authentication_config_path, output_path, generation_config.data.debug,
+            max_stages=args.max_stages
         )
 
         # Final summary
-        run_was_successful = _log_pipeline_summary(logger, successful_stages, len(stages))
+        # If max_stages=0, we should consider it successful even with 0 stages
+        total_stages_to_run = len(stages) if args.max_stages is None else min(args.max_stages, len(stages))
+        if args.max_stages == 0:
+            total_stages_to_run = 0
+
+        run_was_successful = _log_pipeline_summary(logger, successful_stages, total_stages_to_run)
 
     except _PipelineConfigurationError as e:
         if logger:

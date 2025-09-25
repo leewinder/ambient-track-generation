@@ -58,12 +58,14 @@ folders=(
     "src" 
     "src/generation/01 - Generate Image" 
     "src/generation/02 - Expand Image"
+    "src/generation/03 - Upscale Image"
 )
 
 # Define requirements for each folder (space-separated strings)
 requirements_list=(
     "requirements/requirements.txt"
     "requirements/requirements-torch.txt requirements/requirements-all.txt"
+    "requirements/requirements-all.txt"
     "requirements/requirements-all.txt"
 )
 
@@ -110,6 +112,75 @@ for i in "${!folders[@]}"; do
     cd - >/dev/null
 done
 
+
+echo ""
+echo "***** Downloading model weights *****"
+
+# Create weights directory
+WEIGHTS_DIR="models"
+mkdir -p "$WEIGHTS_DIR"
+
+# Array of weight downloads (URL:filename pairs)
+declare -a weight_downloads=(
+    "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.1/RealESRGAN_x2plus.pth:RealESRGAN_x2plus.pth"
+    # Add more weight downloads here in the future
+    # "https://example.com/model2.pth:model2.pth"
+)
+
+# Track failed downloads
+declare -a failed_downloads=()
+
+# Function to download a weight file
+download_weight() {
+    local url="$1"
+    local filename="$2"
+    local filepath="$WEIGHTS_DIR/$filename"
+    
+    echo "Downloading $filename..."
+    
+    # Check if file already exists
+    if [ -f "$filepath" ]; then
+        echo "  $filename already exists, skipping download"
+        return 0
+    fi
+    
+    # Download with curl, follow redirects, and show progress
+    if curl -L --fail --progress-bar -o "$filepath" "$url"; then
+        echo "  ✓ Successfully downloaded $filename"
+        return 0
+    else
+        echo "  ✗ Failed to download $filename from $url"
+        failed_downloads+=("$filename:$url")
+        # Remove partial file if it exists
+        [ -f "$filepath" ] && rm -f "$filepath"
+        return 1
+    fi
+}
+
+# Download all weights
+for weight_info in "${weight_downloads[@]}"; do
+    # Split on the last colon to handle URLs that contain colons
+    url="${weight_info%:*}"
+    filename="${weight_info##*:}"
+    download_weight "$url" "$filename"
+done
+
+echo ""
+echo "***** Weight download summary *****"
+
+if [ ${#failed_downloads[@]} -eq 0 ]; then
+    echo "All weight files downloaded successfully!"
+else
+    echo "Some weight downloads failed:"
+    for failed in "${failed_downloads[@]}"; do
+        # Split on the last colon to handle URLs that contain colons
+        filename="${failed%:*}"
+        url="${failed##*:}"
+        echo "  - $filename (from $url)"
+    done
+    echo ""
+    echo "You may need to download these manually or check if the URLs are still valid."
+fi
 
 echo ""
 echo ""

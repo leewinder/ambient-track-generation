@@ -1,0 +1,19 @@
+# Core libraries
+torch==2.0.0
+torchvision==0.15.0
+
+# Image processing
+pillow==11.3.0
+
+# Real-ESRGAN for upscaling
+basicsr==1.4.2
+realesrgan==0.3.0
+opencv-python==4.10.0.84
+numpy<2.0
+tqdm==4.66.5
+
+# General
+pydantic==2.11.9
+
+# Utilities package (editable install)
+-e ../../utilities

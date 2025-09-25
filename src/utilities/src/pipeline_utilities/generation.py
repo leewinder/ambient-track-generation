@@ -52,6 +52,7 @@ class PathsConfig(StrictBaseModel):
 class ConfigData(StrictBaseModel):
     """ Main configuration data model """
     debug: bool = Field(False, description="Enable debug mode")
+    name: str = Field("", description="Name for this generation run")
     prompts: PromptsConfig
     generation: GenerationConfig = GenerationConfig()
     paths: PathsConfig = PathsConfig()

@@ -3,7 +3,7 @@
 
 import torch
 from diffusers import DiffusionPipeline
-from . import logging_utils
+from pipeline_utilities import logging_utils
 
 # Module-level logger
 logger = logging_utils.get_logger(__name__)

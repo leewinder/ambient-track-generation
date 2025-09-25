@@ -16,7 +16,7 @@ import numpy
 
 # Import our local utilities
 from pipeline_utilities import authentication, generation, args, logging_utils, paths
-from pipeline_utilities import sdxl_utils as sdxl
+from pipeline_sdxl import sdxl_utils as sdxl
 
 
 class _DefaultProperties:

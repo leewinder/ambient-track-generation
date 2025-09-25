@@ -10,9 +10,5 @@ setup(
     python_requires=">=3.11",
     install_requires=[
         "pydantic>=2.0.0",
-        "torch==2.8.0",
-        "torchvision==0.23.0",
-        "torchaudio==2.8.0",
-        "diffusers==0.30.0",
     ],
 )

@@ -10,6 +10,7 @@ class Paths:
 
     OUTPUT_01: Final[str] = "01_initial_image.png"
     OUTPUT_02: Final[str] = "02_widened_image.png"
+    OUTPUT_03: Final[str] = "03_upscaled_image.png"
 
 
 def interim_save_folder(index: int, script_name: str) -> str:

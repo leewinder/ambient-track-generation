@@ -13,7 +13,7 @@ from diffusers import StableDiffusionXLPipeline, StableDiffusionXLImg2ImgPipelin
 
 # Clean imports using the utilities package
 from pipeline_utilities import authentication, generation, args, logging_utils, paths
-from pipeline_utilities import sdxl_utils as sdxl
+from pipeline_sdxl import sdxl_utils as sdxl
 
 # To get good results we need to use a square aspect ratio so ensure that's the case
 
