@@ -120,10 +120,30 @@ def _load_model_from_pretrained(model_cls: Type[_AvailableModels], model_id: str
     ).to(device)
 
 
-def _load_image_model(model_cls: Type[_AvailableModels], model_id: str, dtype: torch.dtype, device: str) -> _AvailableModels:
-    """ Loads the given model class with automatic FP16 file compatibility fixes """
+def _load_model_from_single_file(model_cls: Type[_AvailableModels], model_path: str, dtype: torch.dtype, device: str) -> _AvailableModels:
+    """ Load model from a single .safetensors file using from_single_file """
+    return model_cls.from_single_file(
+        model_path,
+        torch_dtype=dtype,
+        use_safetensors=True,
+        add_watermarker=False
+    ).to(device)
 
-    # Try to load the model normally first
+
+def _load_image_model(model_cls: Type[_AvailableModels], model_id: str, dtype: torch.dtype, device: str) -> _AvailableModels:
+    """ Loads the given model class with automatic detection of single file vs directory models """
+
+    # Check if this is a .safetensors file path
+    if model_id.endswith('.safetensors'):
+        _logger.info("Detected .safetensors file, using from_single_file() method")
+        try:
+            return _load_model_from_single_file(model_cls, model_id, dtype, device)
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            _logger.error("Failed to load model from single file: %s", e)
+            raise e
+
+    # For Hugging Face model IDs or directories, use from_pretrained
+    _logger.info("Using from_pretrained() method for model: %s", model_id)
     try:
         return _load_model_from_pretrained(model_cls, model_id, dtype, device)
     except Exception as e:  # pylint: disable=broad-exception-caught
@@ -208,6 +228,8 @@ def _generate_image() -> Path:
         _logger.debug("  Guidance Scale: %.1f", _config.data.generation.image.guidance)
         _logger.debug("  Base Checkpoint: %s", base_model_id)
         _logger.debug("  Refiner Checkpoint: %s", refiner_model_id)
+        _logger.debug("  Positive Prompt: %s", _config.data.prompts.image_positive)
+        _logger.debug("  Negative Prompt: %s", _config.data.prompts.image_negative)
 
         # Step 1: Base model generates coarse latents
         _logger.info("Running base model for %.1f%% of steps", _config.data.generation.image.base_fractal * 100)

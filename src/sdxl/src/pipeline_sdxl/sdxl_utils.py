@@ -75,14 +75,20 @@ def create_generator(device: str, seed: int) -> torch.Generator:
 
 
 def load_loras(pipeline: DiffusionPipeline, loras: list, token: str) -> None:
-    """ Load LoRA models into the pipeline """
+    """ Load LoRA models into the pipeline with support for local .safetensors files """
     if not loras:
         return
 
     logger.info("Loading %d LoRA(s)", len(loras))
     for lora_config in loras:
-        # Handle LoRA loading based on whether repo is specified
-        if lora_config.repo:
+        # Check if this is a local .safetensors file
+        if lora_config.lora.endswith('.safetensors'):
+            logger.info("Loading local LoRA file: %s (weight: %.2f)", lora_config.lora, lora_config.weight)
+            pipeline.load_lora_weights(
+                lora_config.lora,
+                token=token
+            )
+        elif lora_config.repo:
             # Load LoRA file from within a repository
             logger.info("Loading LoRA: %s/%s (weight: %.2f)", lora_config.repo, lora_config.lora, lora_config.weight)
             pipeline.load_lora_weights(
