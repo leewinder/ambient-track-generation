@@ -4,11 +4,9 @@ Stable Diffusion XL 2-Step Image Generator
 Generates a single image from a text prompt using the SDXL Base + Refiner pipeline
 """
 
-import re
-import os
 import sys
 from pathlib import Path
-from typing import Type, TypeVar, Final
+from typing import Final
 
 import torch
 from diffusers import StableDiffusionXLPipeline, StableDiffusionXLImg2ImgPipeline, EulerDiscreteScheduler
@@ -35,140 +33,6 @@ _logger = logging_utils.setup_pipeline_logging(
     debug=_config.data.debug
 )
 
-_AvailableModels = TypeVar('_AvailableModels', StableDiffusionXLPipeline, StableDiffusionXLImg2ImgPipeline)
-
-
-def _fix_fp16_model_files(model_path: str) -> None:
-    """ 
-    Automatically creates symbolic links for FP16 model files to fix compatibility issues.
-    Some SDXL models use .fp16.safetensors files but diffusers expects .safetensors files.
-    """
-    print(f"Fixing FP16 model files in: {model_path}")
-    model_dir = Path(model_path)
-
-    if not model_dir.exists():
-        raise ValueError(f"Model directory does not exist: {model_path}")
-
-    # Components that might have FP16 files
-    components = ['text_encoder', 'text_encoder_2', 'vae', 'unet']
-    links_created = 0
-
-    for component in components:
-        component_dir = model_dir / component
-        _logger.debug("Checking component: %s", component_dir)
-
-        if not component_dir.exists():
-            _logger.debug("Component directory does not exist: %s", component_dir)
-            continue
-
-        # Check for FP16 files and create symbolic links
-        fp16_files = list(component_dir.glob('*.fp16.safetensors'))
-        _logger.debug("Found %d FP16 files in %s: %s", len(fp16_files), component, [f.name for f in fp16_files])
-
-        for fp16_file in fp16_files:
-            # Create the expected filename without .fp16
-            expected_file = component_dir / fp16_file.name.replace('.fp16.safetensors', '.safetensors')
-            _logger.debug("Checking if %s exists", expected_file)
-
-            # Only create link if the expected file doesn't exist
-            if not expected_file.exists():
-                try:
-                    os.symlink(fp16_file.name, expected_file)
-                    _logger.info("Created symbolic link: %s -> %s", expected_file, fp16_file.name)
-                    links_created += 1
-                except OSError as e:
-                    _logger.error("Failed to create symbolic link for %s: %s", fp16_file.name, e)
-                    raise
-            else:
-                _logger.debug("Symbolic link already exists: %s", expected_file)
-
-    _logger.info("FP16 fix completed. Created %d symbolic links.", links_created)
-
-
-def _is_fp16_file_error(error_str: str) -> bool:
-    """ Check if error is related to FP16 file naming issues """
-    return ("no file named" in error_str and (".safetensors" in error_str or ".bin" in error_str)) or \
-           ("diffusion_pytorch_model.safetensors" in error_str) or \
-           ("model.safetensors" in error_str) or \
-           ("diffusion_pytorch_model.bin" in error_str)
-
-
-def _extract_model_path_from_error(error_message: str) -> str:
-    """ Extract the model cache path from a Hugging Face error message """
-
-    # Look for pattern like: "found in directory /path/to/models--repo--name/snapshots/hash/component"
-    pattern = r"found in directory ([^\s]+)"
-    match = re.search(pattern, error_message)
-
-    if match:
-        # Get the directory path and go up to the model root (snapshots/hash)
-        component_path = match.group(1)
-        model_path = str(Path(component_path).parent)  # Only go up one level to get snapshots/hash
-        return model_path
-
-    raise ValueError(f"Could not extract model path from error: {error_message}")
-
-
-def _load_model_from_pretrained(model_cls: Type[_AvailableModels], model_id: str, dtype: torch.dtype, device: str) -> _AvailableModels:
-    """ Load model using from_pretrained with standard parameters """
-    return model_cls.from_pretrained(
-        model_id,
-        torch_dtype=dtype,
-        use_safetensors=True,
-        token=_authentication.data.huggingface,
-        add_watermarker=False
-    ).to(device)
-
-
-def _load_model_from_single_file(model_cls: Type[_AvailableModels], model_path: str, dtype: torch.dtype, device: str) -> _AvailableModels:
-    """ Load model from a single .safetensors file using from_single_file """
-    return model_cls.from_single_file(
-        model_path,
-        torch_dtype=dtype,
-        use_safetensors=True,
-        add_watermarker=False
-    ).to(device)
-
-
-def _load_image_model(model_cls: Type[_AvailableModels], model_id: str, dtype: torch.dtype, device: str) -> _AvailableModels:
-    """ Loads the given model class with automatic detection of single file vs directory models """
-
-    # Check if this is a .safetensors file path
-    if model_id.endswith('.safetensors'):
-        _logger.info("Detected .safetensors file, using from_single_file() method")
-        try:
-            return _load_model_from_single_file(model_cls, model_id, dtype, device)
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            _logger.error("Failed to load model from single file: %s", e)
-            raise e
-
-    # For Hugging Face model IDs or directories, use from_pretrained
-    _logger.info("Using from_pretrained() method for model: %s", model_id)
-    try:
-        return _load_model_from_pretrained(model_cls, model_id, dtype, device)
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        # Check if this is a FP16 file naming issue
-        error_str = str(e)
-        if _is_fp16_file_error(error_str):
-
-            _logger.info("Detected FP16 model file naming issue, fixing links...")
-
-            try:
-                # Extract model cache path from error message
-                model_path = _extract_model_path_from_error(error_str)
-
-                # Fix FP16 model files automatically
-                _fix_fp16_model_files(model_path)
-
-                # Retry with same model_id - will use cached files
-                return _load_model_from_pretrained(model_cls, model_id, dtype, device)
-            except Exception as fix_error:
-                _logger.error("Failed to fix FP16 model files: %s", fix_error)
-                raise e from fix_error
-        else:
-            # Re-raise if it's not a file naming issue
-            raise e
-
 
 def _generate_image() -> Path:
     """ Generate an image using SDXL Base + Refiner pipelines with a 2-step denoising process """
@@ -194,14 +58,15 @@ def _generate_image() -> Path:
 
     # Load Base Pipeline: generates coarse image latents
     _logger.info("Loading SDXL base pipeline (this will take a while the first time)")
-    pipe = _load_image_model(StableDiffusionXLPipeline, base_model_id, dtype, device)
+    pipe = sdxl.load_model(StableDiffusionXLPipeline, base_model_id, dtype, device, _authentication.data.huggingface)
 
     # Load LoRAs for base pipeline
     sdxl.load_loras(pipe, _config.data.generation.image.base_loras, _authentication.data.huggingface)
 
     # Load Refiner Pipeline: refines the latents into a final high-quality image
     _logger.info("Loading SDXL refiner pipeline")
-    refiner = _load_image_model(StableDiffusionXLImg2ImgPipeline, refiner_model_id, dtype, device)
+    refiner = sdxl.load_model(StableDiffusionXLImg2ImgPipeline, refiner_model_id,
+                              dtype, device, _authentication.data.huggingface)
 
     # Load LoRAs for refiner pipeline
     sdxl.load_loras(refiner, _config.data.generation.image.refiner_loras, _authentication.data.huggingface)

@@ -7,6 +7,12 @@ from pydantic import Field
 from .pydantic_utils import StrictBaseModel, JsonFileLoader, create_loader_function
 from . import logging_utils
 
+# Public API - functions and classes that external scripts should use
+__all__ = [
+    'Generation',
+    'load_generation_config'
+]
+
 
 # Pydantic models for structured generation
 class Lora(StrictBaseModel):

@@ -7,6 +7,13 @@ from typing import Callable
 
 from pydantic import BaseModel
 
+# Public API - functions and classes that external scripts should use
+__all__ = [
+    'StrictBaseModel',
+    'JsonFileLoader',
+    'create_loader_function'
+]
+
 
 class StrictBaseModel(BaseModel):
     """ Base model with strict validation (no extra fields allowed) """
@@ -28,6 +35,11 @@ class JsonFileLoader:
         except ValueError as exc:
             # Re-raise with clean traceback
             raise ValueError(str(exc)) from None
+
+    @property
+    def data(self) -> StrictBaseModel:
+        """ Get read-only access to the structured data """
+        return self._data
 
     def _load_and_validate(self) -> StrictBaseModel:
         """ Load and validate the JSON file using the Pydantic model """

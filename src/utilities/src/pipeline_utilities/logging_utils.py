@@ -5,6 +5,13 @@ import logging
 import sys
 from pathlib import Path
 
+# Public API - functions and classes that external scripts should use
+__all__ = [
+    'EnhancedLogger',
+    'get_logger',
+    'setup_pipeline_logging'
+]
+
 
 class EnhancedLogger:
     """ Enhanced logger with custom methods for better formatting """

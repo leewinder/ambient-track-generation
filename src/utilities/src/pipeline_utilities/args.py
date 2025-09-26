@@ -1,6 +1,12 @@
 """ Common argument parser for all scripts in the project """
 import argparse
 
+# Public API - functions and classes that external scripts should use
+__all__ = [
+    'BaseArgumentParser',
+    'parse_arguments'
+]
+
 
 class BaseArgumentParser:
     """ Base argument parser with common arguments for all scripts """

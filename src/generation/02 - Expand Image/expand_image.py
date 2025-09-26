@@ -233,13 +233,8 @@ def _outpaint_image() -> str:
     checkpoint = _config.data.generation.outpaint.checkpoint
     _logger.debug("Using inpainting checkpoint: %s", checkpoint)
 
-    pipe = StableDiffusionXLInpaintPipeline.from_pretrained(
-        checkpoint,
-        torch_dtype=sdxl.get_optimal_dtype(device),
-        use_safetensors=True,
-        token=_authentication.data.huggingface,
-        add_watermarker=False
-    ).to(device)
+    pipe = sdxl.load_model(StableDiffusionXLInpaintPipeline, checkpoint,
+                           sdxl.get_optimal_dtype(device), device, _authentication.data.huggingface)
 
     # Load LoRAs for outpaint pipeline
     sdxl.load_loras(pipe, _config.data.generation.outpaint.loras, _authentication.data.huggingface)
