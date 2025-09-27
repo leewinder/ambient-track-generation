@@ -99,31 +99,49 @@ def load_loras(pipeline: DiffusionPipeline, loras: list, token: str) -> None:
         return
 
     logger.info("Loading %d LoRA(s)", len(loras))
-    for lora_config in loras:
+    adapter_names = []
+
+    # Load all LoRAs with unique adapter names (don't fuse yet)
+    for i, lora_config in enumerate(loras):
+        adapter_name = f"lora_{i}"
+        adapter_names.append(adapter_name)
+
         # Check if this is a local .safetensors file (ends with .safetensors AND no repo specified)
         if lora_config.lora.endswith('.safetensors') and not lora_config.repo:
-            logger.info("Loading local LoRA file: %s (weight: %.2f)", lora_config.lora, lora_config.weight)
+            logger.info("Loading local LoRA file: %s (weight: %.2f) as adapter '%s'",
+                        lora_config.lora, lora_config.weight, adapter_name)
             pipeline.load_lora_weights(
                 lora_config.lora,
+                adapter_name=adapter_name,
                 token=token
             )
         elif lora_config.repo:
             # Load LoRA file from within a repository
-            logger.info("Loading LoRA: %s/%s (weight: %.2f)", lora_config.repo, lora_config.lora, lora_config.weight)
+            logger.info("Loading LoRA: %s/%s (weight: %.2f) as adapter '%s'",
+                        lora_config.repo, lora_config.lora, lora_config.weight, adapter_name)
             pipeline.load_lora_weights(
                 lora_config.repo,
                 weight_name=lora_config.lora,
+                adapter_name=adapter_name,
                 token=token
             )
         else:
             # Load LoRA from a dedicated repository
-            logger.info("Loading LoRA: %s (weight: %.2f)", lora_config.lora, lora_config.weight)
+            logger.info("Loading LoRA: %s (weight: %.2f) as adapter '%s'",
+                        lora_config.lora, lora_config.weight, adapter_name)
             pipeline.load_lora_weights(
                 lora_config.lora,
+                adapter_name=adapter_name,
                 token=token
             )
 
-        pipeline.fuse_lora(lora_scale=lora_config.weight)
+    # Fuse all LoRAs simultaneously with their individual weights
+    logger.info("Fusing all LoRAs simultaneously")
+    for i, lora_config in enumerate(loras):
+        pipeline.fuse_lora(
+            adapter_names=[f"lora_{i}"],
+            lora_scale=lora_config.weight
+        )
 
 
 def load_model(model_cls: Type[AvailableModels], model_id: str, dtype: torch.dtype, device: str, token: str) -> AvailableModels:
