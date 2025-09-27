@@ -16,6 +16,9 @@ import sys
 import argparse
 from pathlib import Path
 
+HIGHLIGHT_CHARACTER_LENGTH = 120
+HIGHLIGHT_CHARACTER = "*"
+
 
 def parse_arguments() -> argparse.Namespace:
     """ Parse command line arguments for the batch generation script """
@@ -77,20 +80,23 @@ def save_json_file(file_path: Path, data: dict) -> None:
 
 
 def merge_common_and_build(common: dict, build: dict) -> dict:
-    """ Merge common and build properties, with build taking precedence """
+    """ Merge common and build.properties, with build.properties taking precedence """
     # Start with common as base
     merged = common.copy()
 
-    # Deep merge build properties, with build taking precedence
-    merged = _deep_merge(merged, build)
+    # Get the properties from the build
+    build_properties = build.get("properties", {})
+
+    # Deep merge build properties, with build properties taking precedence
+    merged = _deep_merge(merged, build_properties)
 
     # Special handling for name field - combine as "common_name (build_name)"
-    if "name" in common and "name" in build:
-        merged["name"] = f"{common['name']} ({build['name']})"
+    if "name" in common and "name" in build_properties:
+        merged["name"] = f"{common['name']} ({build_properties['name']})"
     elif "name" in common:
         merged["name"] = common["name"]
-    elif "name" in build:
-        merged["name"] = build["name"]
+    elif "name" in build_properties:
+        merged["name"] = build_properties["name"]
 
     return merged
 
@@ -147,12 +153,13 @@ def create_generation_file(project_root: Path, prompts_data: dict, config_idx: i
     config_entry = prompts_data["config"][config_idx]
     common = config_entry.get("common", {})
     build = config_entry["builds"][build_idx]
+    build_properties = build.get("properties", {})
 
     print(f"Config: {common.get('name', 'Unnamed')}")
-    print(f"Build: {build.get('name', 'Unnamed')}")
+    print(f"Build: {build_properties.get('name', 'Unnamed')}")
     print()
 
-    # Merge common and build
+    # Merge common and build properties
     print("Merging common and build properties...")
     merged_config = merge_common_and_build(common, build)
     entry_name = merged_config.get("name", f"Config {config_idx} Build {build_idx}")
@@ -260,19 +267,44 @@ def main():
     total_builds = 0
     for config_entry in config_array:
         builds = config_entry.get("builds", [])
-        total_builds += len(builds)
-
-    print(f"Found {total_builds} total builds across {len(config_array)} config groups")
-    print()
+        for build in builds:
+            # Get number_of_images, default to 1 if not present
+            number_of_images = build.get("number_of_images", 1)
+            if not isinstance(number_of_images, int) or number_of_images < 1:
+                print(f"ERROR: Invalid number_of_images in build: {number_of_images}. Must be >= 1")
+                sys.exit(1)
+            total_builds += number_of_images
 
     # Determine max_stages from config file
     max_stages = None
     if "max_generation_steps" in prompts_data:
         max_stages = prompts_data["max_generation_steps"]
-        print(f"Using max_stages from config: {max_stages}")
+        total_stages = max_stages
     else:
-        print("No max_stages limit - running all stages")
-    print()
+        total_stages = "All"  # No limit - run all available stages
+
+    # Print the prominent header
+    print("\n" * 10)
+    print(HIGHLIGHT_CHARACTER * HIGHLIGHT_CHARACTER_LENGTH)
+    print(HIGHLIGHT_CHARACTER * HIGHLIGHT_CHARACTER_LENGTH)
+    print(HIGHLIGHT_CHARACTER * HIGHLIGHT_CHARACTER_LENGTH)
+    print(HIGHLIGHT_CHARACTER * HIGHLIGHT_CHARACTER_LENGTH)
+    print(HIGHLIGHT_CHARACTER * HIGHLIGHT_CHARACTER_LENGTH)
+    print(HIGHLIGHT_CHARACTER * HIGHLIGHT_CHARACTER_LENGTH)
+    print("")
+    print("                    STARTING BATCH GENERATION")
+    print("")
+    print(f"                    Total Images To Generate: {total_builds}")
+    print(f"                    Number Of Configurations: {len(config_array)}")
+    print(f"                    Stages To Run: {total_stages}")
+    print("")
+    print(HIGHLIGHT_CHARACTER * HIGHLIGHT_CHARACTER_LENGTH)
+    print(HIGHLIGHT_CHARACTER * HIGHLIGHT_CHARACTER_LENGTH)
+    print(HIGHLIGHT_CHARACTER * HIGHLIGHT_CHARACTER_LENGTH)
+    print(HIGHLIGHT_CHARACTER * HIGHLIGHT_CHARACTER_LENGTH)
+    print(HIGHLIGHT_CHARACTER * HIGHLIGHT_CHARACTER_LENGTH)
+    print(HIGHLIGHT_CHARACTER * HIGHLIGHT_CHARACTER_LENGTH)
+    print("\n" * 2)
 
     # Process each configuration entry
     successful_runs = 0
@@ -291,51 +323,75 @@ def main():
             print(f"ERROR: No builds found in config {config_idx}")
             continue
 
+        # Count total builds in this config
+        config_total_builds = 0
+        for build in builds:
+            number_of_images = build.get("number_of_images", 1)
+            config_total_builds += number_of_images
+
         print(f"Processing config group {config_idx} with {len(builds)} builds")
         print(f"Common name: {common.get('name', 'Unnamed')}")
+        print(f"Total builds in this config: {config_total_builds}")
         print()
 
         # Process each build in this config
+        current_config_build = 0
         for build_idx, build_entry in enumerate(builds, 1):
-            current_build += 1
+            # Get number_of_images, default to 1 if not present
+            number_of_images = build_entry.get("number_of_images", 1)
+            if not isinstance(number_of_images, int) or number_of_images < 1:
+                print(f"ERROR: Invalid number_of_images in build {build_idx}: {number_of_images}. Must be >= 1")
+                continue
 
             # Merge common and build properties
             merged_config = merge_common_and_build(common, build_entry)
-            entry_name = merged_config.get("name", f"Config {config_idx} Build {build_idx}")
+            base_name = merged_config.get("name", f"Config {config_idx} Build {build_idx}")
 
-            # Add lots of spacing and clear visual separator for new generation
-            print("\n" * 10)
-            print("*" * 80)
-            print("*" * 80)
-            print("*" * 80)
-            print("")
-            print("                    STARTING A NEW GENERATION STEP")
-            print("")
-            print(f"                    Build {current_build}/{total_builds}: {entry_name}")
-            print("")
-            print("*" * 80)
-            print("*" * 80)
-            print("*" * 80)
-            print("\n")
+            # Process each run of this build
+            for run_idx in range(1, number_of_images + 1):
+                current_build += 1
+                current_config_build += 1
 
-            # Save merged configuration to generation.json
-            print("Updating generation.json with configuration...")
-            save_json_file(generation_file, merged_config)
+                # Create the run-specific name
+                entry_name = f"{base_name} ({run_idx} of {number_of_images})"
 
-            # Run generation
-            print("Starting generation process...")
-            print()
+                # Update the merged config with the run-specific name
+                merged_config["name"] = entry_name
 
-            exit_code = run_generation(project_root, max_stages)
+                # Add lots of spacing and clear visual separator for new generation
+                print("\n" * 10)
+                print(HIGHLIGHT_CHARACTER * HIGHLIGHT_CHARACTER_LENGTH)
+                print(HIGHLIGHT_CHARACTER * HIGHLIGHT_CHARACTER_LENGTH)
+                print(HIGHLIGHT_CHARACTER * HIGHLIGHT_CHARACTER_LENGTH)
+                print("")
+                print("                    STARTING A NEW GENERATION STEP")
+                print("")
+                print(
+                    f"                    Build {current_build}/{total_builds} : Config {current_config_build}/{config_total_builds} : {entry_name}")
+                print("")
+                print(HIGHLIGHT_CHARACTER * HIGHLIGHT_CHARACTER_LENGTH)
+                print(HIGHLIGHT_CHARACTER * HIGHLIGHT_CHARACTER_LENGTH)
+                print(HIGHLIGHT_CHARACTER * HIGHLIGHT_CHARACTER_LENGTH)
+                print("\n")
 
-            if exit_code == 0:
-                print(f"✓ Generation completed successfully for '{entry_name}'")
-                successful_runs += 1
-            else:
-                print(f"✗ Generation failed for '{entry_name}' (exit code: {exit_code})")
-                failed_runs += 1
+                # Save merged configuration to generation.json
+                print("Updating generation.json with configuration...")
+                save_json_file(generation_file, merged_config)
 
-            print()
+                # Run generation
+                print("Starting generation process...")
+                print()
+
+                exit_code = run_generation(project_root, max_stages)
+
+                if exit_code == 0:
+                    print(f"✓ Generation completed successfully for '{entry_name}'")
+                    successful_runs += 1
+                else:
+                    print(f"✗ Generation failed for '{entry_name}' (exit code: {exit_code})")
+                    failed_runs += 1
+
+                print()
 
     # Final summary
     print("=" * 60)
