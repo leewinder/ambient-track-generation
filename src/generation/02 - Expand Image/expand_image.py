@@ -177,10 +177,13 @@ def _create_seamless_central_mask(dimensions: _Dimensions) -> Image.Image:
 
 def _run_outpainting_model(pipeline: StableDiffusionXLInpaintPipeline, canvas: Image.Image, mask: Image.Image, generator: torch.Generator) -> Image.Image:
     """ Runs a single inpainting pass with the given canvas and mask """
+
+    # Get outpaint prompts (fallback to base if not specified)
+    outpaint_prompts = _config.data.prompts.get_outpaint_image_prompts()
     with torch.no_grad():
         result = pipeline(
-            prompt=_config.data.prompts.image_positive,
-            negative_prompt=_config.data.prompts.image_negative,
+            prompt=outpaint_prompts.positive,
+            negative_prompt=outpaint_prompts.negative,
             image=canvas,
             mask_image=mask,
             num_inference_steps=_config.data.generation.outpaint.steps,
@@ -228,13 +231,17 @@ def _outpaint_image() -> str:
 
     _logger.header("Setting up Stable Diffusion Inpainting")
     device = sdxl.get_device()
-    pipe = StableDiffusionXLInpaintPipeline.from_pretrained(
-        "diffusers/stable-diffusion-xl-1.0-inpainting-0.1",
-        torch_dtype=sdxl.get_optimal_dtype(device),
-        use_safetensors=True,
-        token=_authentication.data.huggingface,
-        add_watermarker=False
-    ).to(device)
+
+    # Get checkpoint from configuration
+    checkpoint = _config.data.generation.outpaint.checkpoint
+    _logger.debug("Using inpainting checkpoint: %s", checkpoint)
+
+    pipe = sdxl.load_model(StableDiffusionXLInpaintPipeline, checkpoint,
+                           sdxl.get_optimal_dtype(device), device, _authentication.data.huggingface)
+
+    # Load LoRAs for outpaint pipeline
+    sdxl.load_loras(pipe, _config.data.generation.outpaint.loras, _authentication.data.huggingface)
+
     sdxl.optimize_pipeline(pipe, device)
 
     source_image = Image.open(source_image_path).convert("RGB")

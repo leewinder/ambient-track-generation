@@ -7,6 +7,12 @@ from pydantic import Field, field_validator
 from .pydantic_utils import StrictBaseModel, JsonFileLoader, create_loader_function
 from . import logging_utils
 
+# Public API - functions and classes that external scripts should use
+__all__ = [
+    'Authentication',
+    'load_authentication_config'
+]
+
 # Regex pattern for Hugging Face token validation
 HF_TOKEN_PATTERN = r'^hf_[a-zA-Z0-9]{30,40}$'
 

@@ -2,6 +2,12 @@
 import os
 from typing import Final
 
+# Public API - functions and classes that external scripts should use
+__all__ = [
+    'Paths',
+    'interim_save_folder'
+]
+
 
 class Paths:
     """ Defines the path properties that are used throughout the generation process """

@@ -39,7 +39,7 @@ When you first run the script, it might fail saying you need to accept the terms
 
 Easiest way to do this is to copy the `generation_example.json` and rename it to `generation.json`.  
 
-At this point, the only thing I would suggest changing in your file would be the `image_positive` and `image_negative` values, and possibly the `seed` value, which is currently fixed so the same prompt will generate the same image.  If you want it to change each time, remove that field entirely.
+At this point, the only thing I would suggest changing in your file would be the `prompts` values, and possibly the `seed` value, which is currently fixed so the same prompt will generate the same image.  If you want it to change each time, remove that field entirely.
 
 &nbsp; 
 ### Run the installation script
@@ -81,18 +81,26 @@ The process will drop the results of the run into the `./output/` folder, with t
 
 This will store the logs and environment used to run the generation step, plus the output files in the `./output/results` folder.  Since it's not finished yet, the output will be in the `./output/results/temp` folder, as it's simply the output of each step.
 
+&nbsp; 
+## Checkpoints and LoRAs
+You can set the specific checkpoints (only those based on SDXL 1.0 are supported) you want for each stage in the generation.json file in one of two ways
+* Pass through the Hugging Face repository name (e.g. `RunDiffusion/Juggernaut-XL-v9`) which will cause the script to download the checkpoint
+* Download the weights file (.safetensors) and add the path to the file (e.g. `../../../checkpoints/Juggernaut-XL-v9.safetensors`)
+
+It is recommended that you stick with `stabilityai/stable-diffusion-xl-refiner-1.0` for the refiner step, and use a checkpoint from the same model family as the out painter so you get consistent results.
+
+LoRAs are applied in a similar fashion in the relevant generation stage and can be specified in two ways
+* Pass through the repository (via `repo`) and weights (via `lora`) to allow the script to download it
+* Download the LoRA file (.safetensors) and add the path to the file (via `lora`)
+
+In both cases you need to specify the weight that LoRA will be given when content is being generated
+
 
 &nbsp; 
 ## Troubleshooting
 ### Common Issues
 * It doesn't work
   - 🤷‍♂️
-
-&nbsp; 
-## Models Used
-* Image generation: [Stable Diffusion XL](https://stablediffusionxl.com/)
-* Out Painting: [Stable Diffusion XL](https://huggingface.co/diffusers/stable-diffusion-xl-1.0-inpainting-0.1)
-* Image Upscaling: [Real-ESRGAN x2+ (v0.2.1)](https://github.com/xinntao/Real-ESRGAN)
 
 &nbsp; 
 ## License
