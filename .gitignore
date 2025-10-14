@@ -5,13 +5,9 @@ env/
 .env/
 
 # Local
-result/
 output/
-authentication.json
-.cursorignore
-.cursorrules
-generation.json
-prompts/
+archive/
+batch copy.json
 
 # Python
 __pycache__/

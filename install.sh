@@ -1,5 +1,26 @@
 #!/bin/bash
-set -e  # Exit on any error
+set -euo pipefail  # Exit on any error, unset variables, and pipe failures
+
+# Parse command line arguments
+SKIP_ENVIRONMENTS=false
+TARGET_MODULE=""
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --no-environments)
+            SKIP_ENVIRONMENTS=true
+            shift
+            ;;
+        --module)
+            TARGET_MODULE="$2"
+            shift 2
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Usage: $0 [--no-environments] [--module <module_or_utility_name>]"
+            exit 1
+            ;;
+    esac
+done
 
 echo ""
 echo ""
@@ -21,19 +42,21 @@ fi
 echo "pyenv detected"
 
 # Check if the required Python version is installed
-required_version=$(cat .python-version)
+required_version=$(cat .python-version | tr -d '\n')
 echo "Required Python version: $required_version"
 
-if pyenv versions --bare | grep -q "^$required_version$"; then
+# Check if version is already installed
+installed_versions=$(pyenv versions --bare)
+if echo "$installed_versions" | grep -Fxq "$required_version"; then
     echo "Python $required_version is already installed"
 else
     echo "Installing Python $required_version..."
-    pyenv install $required_version
+    pyenv install "$required_version"
 fi
 
 # Set local Python version
 echo "Setting local Python version to $required_version..."
-pyenv local $required_version
+pyenv local "$required_version"
 
 # Refresh shell to use new Python version
 eval "$(pyenv init -)"
@@ -47,140 +70,86 @@ if [[ ! "$python_version" =~ ^3\.11\. ]]; then
     exit 1
 fi
 
-echo ""
-echo "***** Create per-stage virtual environments *****"
-
-# Optional: folder to process (first argument)
-TARGET_FOLDER="$1"
-
-# Define folders
-folders=(
-    "src" 
-    "src/generation/01 - Generate Image" 
-    "src/generation/02 - Expand Image"
-    "src/generation/03 - Upscale Image"
-)
-
-# Define requirements for each folder (space-separated strings)
-requirements_list=(
-    "requirements/requirements.txt"
-    "requirements/requirements-torch.txt requirements/requirements-all.txt"
-    "requirements/requirements-all.txt"
-    "requirements/requirements-all.txt"
-)
-
-# Loop through folders
-for i in "${!folders[@]}"; do
-    folder="${folders[$i]}"
-
-    # Skip folders if TARGET_FOLDER is set and doesn't match
-    if [[ -n "$TARGET_FOLDER" && "$folder" != "$TARGET_FOLDER" ]]; then
-        continue
-    fi
-
-    reqs="${requirements_list[$i]}"
-
+# Only create virtual environments if -no-environments flag is not set
+if [ "$SKIP_ENVIRONMENTS" = false ]; then
     echo ""
-    echo "Setting up $folder..."
-    cd "$folder"
+    echo "***** Create per-stage virtual environments *****"
 
-    # Delete existing virtual environment if it exists
-    if [ -d "venv" ]; then
-        echo "Removing existing virtual environment..."
-        rm -rf venv
-    fi
-
-    # Create and activate virtual environment
-    echo "Creating virtual environment..."
-    python -m venv venv
-    source venv/bin/activate
-
-    # Upgrade pip
-    echo "Upgrading pip..."
-    pip install --upgrade pip
-
-    # Install all requirements
-    for req_file in $reqs; do
-        echo "Installing requirements from $req_file..."
-        pip install -r "$req_file"
+    # Discover all module directories dynamically
+    echo "Discovering modules in src/modules/..."
+    module_folders=()
+    for module_dir in src/modules/*/; do
+        if [[ -d "$module_dir" && -f "${module_dir}requirements.txt" ]]; then
+            module_folders+=("$module_dir")
+            echo "Found module: $module_dir"
+        fi
     done
 
-    # Deactivate
-    echo "Closing down virtual environment..."
-    deactivate
+    # Discover all utility directories dynamically
+    echo "Discovering utilities in utilities/..."
+    utility_folders=()
+    for utility_dir in utilities/*/; do
+        if [[ -d "$utility_dir" && -f "${utility_dir}requirements.txt" ]]; then
+            utility_folders+=("$utility_dir")
+            echo "Found utility: $utility_dir"
+        fi
+    done
 
-    cd - >/dev/null
-done
+    # Combine modules and utilities into a single array
+    all_folders=("${module_folders[@]}" "${utility_folders[@]}")
 
-
-echo ""
-echo "***** Downloading model weights *****"
-
-# Create weights directory
-WEIGHTS_DIR="models"
-mkdir -p "$WEIGHTS_DIR"
-
-# Array of weight downloads (URL:filename pairs)
-declare -a weight_downloads=(
-    "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.1/RealESRGAN_x2plus.pth:RealESRGAN_x2plus.pth"
-    # Add more weight downloads here in the future
-    # "https://example.com/model2.pth:model2.pth"
-)
-
-# Track failed downloads
-declare -a failed_downloads=()
-
-# Function to download a weight file
-download_weight() {
-    local url="$1"
-    local filename="$2"
-    local filepath="$WEIGHTS_DIR/$filename"
-    
-    echo "Downloading $filename..."
-    
-    # Check if file already exists
-    if [ -f "$filepath" ]; then
-        echo "  $filename already exists, skipping download"
-        return 0
+    if [[ ${#all_folders[@]} -eq 0 ]]; then
+        echo "No modules or utilities found with requirements.txt files"
+        exit 1
     fi
-    
-    # Download with curl, follow redirects, and show progress
-    if curl -L --fail --progress-bar -o "$filepath" "$url"; then
-        echo "  ✓ Successfully downloaded $filename"
-        return 0
-    else
-        echo "  ✗ Failed to download $filename from $url"
-        failed_downloads+=("$filename:$url")
-        # Remove partial file if it exists
-        [ -f "$filepath" ] && rm -f "$filepath"
-        return 1
-    fi
-}
 
-# Download all weights
-for weight_info in "${weight_downloads[@]}"; do
-    # Split on the last colon to handle URLs that contain colons
-    url="${weight_info%:*}"
-    filename="${weight_info##*:}"
-    download_weight "$url" "$filename"
-done
+    echo "Total folders to process: ${#all_folders[@]} (${#module_folders[@]} modules, ${#utility_folders[@]} utilities)"
 
-echo ""
-echo "***** Weight download summary *****"
+    # Loop through discovered folders (modules and utilities)
+    for folder in "${all_folders[@]}"; do
+        # Extract folder name from path (e.g., "src/modules/content_generation/" -> "content_generation")
+        folder_name=$(basename "$folder")
+        
+        # Skip folders if TARGET_MODULE is set and doesn't match
+        if [[ -n "$TARGET_MODULE" && "$folder_name" != "$TARGET_MODULE" ]]; then
+            echo "Skipping $folder_name (not matching target: $TARGET_MODULE)"
+            continue
+        fi
 
-if [ ${#failed_downloads[@]} -eq 0 ]; then
-    echo "All weight files downloaded successfully!"
+        echo ""
+        echo "Setting up $folder..."
+        cd "$folder"
+
+        # Delete existing virtual environment if it exists
+        if [ -d "venv" ]; then
+            echo "Removing existing virtual environment..."
+            rm -rf venv
+        fi
+
+        # Create and activate virtual environment
+        echo "Creating virtual environment..."
+        python -m venv venv
+        source venv/bin/activate
+
+        # Upgrade pip
+        echo "Upgrading pip..."
+        pip install --upgrade pip
+
+        # Install requirements
+        echo "Installing requirements from requirements.txt..."
+        pip install -r requirements.txt
+
+        # Deactivate
+        echo "Closing down virtual environment..."
+        deactivate
+
+        cd - >/dev/null
+    done
 else
-    echo "Some weight downloads failed:"
-    for failed in "${failed_downloads[@]}"; do
-        # Split on the last colon to handle URLs that contain colons
-        filename="${failed%:*}"
-        url="${failed##*:}"
-        echo "  - $filename (from $url)"
-    done
     echo ""
-    echo "You may need to download these manually or check if the URLs are still valid."
+    echo "***** Skipping virtual environment creation (--no-environments flag provided) *****"
 fi
+
 
 echo ""
 echo ""

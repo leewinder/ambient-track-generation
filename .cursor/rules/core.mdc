@@ -1,0 +1,15 @@
+---
+description: Core rules for development
+alwaysApply: true
+---
+
+- Most critical rules
+    - Speak in plain English and provide context and clarification for decisions made
+    - Do not assume what I suggest is the right or correct approach - challenge and discuss if there are better options
+    - After discussing a task, explain back to me what the task was and the approach you will take with examples and code snippets
+    
+- When writing any code ensure you optimize for readability over premature optimization
+    - Document all functions and classes clearly
+    - Make small, discrete changes and check back for next steps, do not change large portions of the code base in one go
+    - Code changes should take priority over environmental changes
+    - Where code is duplicated it should be pulled out into a relevant utilities library 

@@ -1,35 +1,43 @@
-#!/bin/bash
-set -e  # Exit on any error
+#!/usr/bin/env bash
+set -euo pipefail
 
-echo ""
-echo "==================================================="
-echo "= Starting ambient track generation pipeline     ="
-echo "==================================================="
-echo ""
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Check if we're in the right directory
-if [ ! -f "src/generate.py" ]; then
-    echo "ERROR: generate.py not found in src/ directory"
-    echo "Please run this script from the project root directory"
+# Define paths
+PYTHON_BIN="$SCRIPT_DIR/src/modules/generation_runner/venv/bin/python"
+RUNNER_SCRIPT="$SCRIPT_DIR/src/modules/generation_runner/main.py"
+LOG_FILE="$SCRIPT_DIR/pipeline.log"
+
+# Validate required files exist
+if [[ ! -f "$PYTHON_BIN" ]]; then
+    echo "ERROR: Python interpreter not found at $PYTHON_BIN"
+    echo "Please ensure the generation_runner module venv is properly set up"
     exit 1
 fi
 
-# Check if virtual environment exists
-if [ ! -d "src/venv" ]; then
-    echo "ERROR: Virtual environment not found in src/venv"
-    echo "Please run install.sh first to set up the environment"
+if [[ ! -f "$RUNNER_SCRIPT" ]]; then
+    echo "ERROR: Runner script not found at $RUNNER_SCRIPT"
     exit 1
 fi
 
-echo "Activating virtual environment..."
-cd src
-source venv/bin/activate
-
-echo "Starting generation pipeline..."
+# Start pipeline generation
+echo "Starting pipeline generation..."
+echo "Using Python: $PYTHON_BIN"
+echo "Runner script: $RUNNER_SCRIPT"
+echo "Log file: $LOG_FILE"
+echo "Working directory: $SCRIPT_DIR"
 echo ""
 
-# Run the generation script with all arguments passed through
-python generate.py "$@"
+# Delete existing log file to start fresh
+if [[ -f "$LOG_FILE" ]]; then
+    echo "Deleting existing log file: $LOG_FILE"
+    rm "$LOG_FILE"
+fi
+
+# Change to project root directory and execute the runner
+cd "$SCRIPT_DIR"
+"$PYTHON_BIN" "$RUNNER_SCRIPT" --step all --log-file "$LOG_FILE" || exit 1
 
 echo ""
-echo "Generation pipeline completed!"
+echo "Pipeline generation complete. Log: $LOG_FILE"

@@ -18,31 +18,23 @@ class BaseArgumentParser:
         )
         self.add_base_arguments()
 
+        # Automatically call add_additional_arguments if it exists in the derived class
+        if hasattr(self, 'add_additional_arguments'):
+            self.add_additional_arguments()
+
     def add_base_arguments(self) -> None:
         """ Add arguments that every script needs """
-        self.parser.add_argument(
-            '--config', '-c',
-            type=str,
-            help='Path to the configuration file containing the build properties',
-            required=True
-        )
-        self.parser.add_argument(
-            '--authentication', '-a',
-            type=str,
-            help='Path to the authentication file containing our service tokens',
-            required=True
-        )
-        self.parser.add_argument(
-            '--output', '-o',
-            type=str,
-            help='Output folder used to store all temp and generated content',
-            required=True
-        )
         self.parser.add_argument(
             '--log-file',
             type=str,
             default='pipeline.log',
             help='Log file path (default: pipeline.log)'
+        )
+        self.parser.add_argument(
+            '--step',
+            type=str,
+            required=True,
+            help='Step name to execute from configuration.json'
         )
 
     def parse(self) -> argparse.Namespace:

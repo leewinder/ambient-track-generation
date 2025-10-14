@@ -1,0 +1,78 @@
+{
+  "name": "Night View of Elyria (Beeple)",
+  "debug": true,
+  "generation": {
+    "seed": 91
+  },
+  "comfyui": {
+    "server": "http://kingdom.local:8188/",
+    "check_interval": 10,
+    "output": "~/Documents/ComfyUI/output/"
+  },
+  "workflows": {
+    "image_generation+flux": {
+      "modifiers": {
+        "CLIPTextEncodeFlux::t5xxl": "<prompts[0]>",
+        "CLIPTextEncodeFlux::clip_l": "<prompts[1]>",
+        "CLIPTextEncodeFlux::guidance": 3.5,
+        "KSampler::seed": "<seed>",
+        "KSampler::cfg": 0.8,
+        "KSampler::steps": 25,
+        "Load Diffusion Model::unet_name": "STOIQO NewReality Flux1 Dev - Alpha 2.safetensors"
+      }
+    },
+    "image_expansion+flux": {
+      "modifiers": {
+        "Load Image::image": "<input>",
+        "CLIPTextEncodeFlux::t5xxl": "<prompts[0]>",
+        "CLIPTextEncodeFlux::clip_l": "<prompts[1]>",
+        "CLIPTextEncodeFlux::guidance": 3.5,
+        "FluxGuidance::guidance": 10,
+        "KSampler::seed": "<seed>",
+        "KSampler::cfg": 0.8,
+        "KSampler::steps": 25,
+        "Load Diffusion Model::unet_name": "Flux1 Dev Fill.safetensors"
+      }
+    },
+    "image_upscale+esrgan": {
+      "modifiers": {
+        "Load Image::image": "<input>",
+        "Load Upscale Model::model_name": "RealESRGAN_x2plus.pth"
+      }
+    }
+  },
+  "steps": {
+    "image_generation": {
+      "module": "content_generation",
+      "workflow": "image_generation+flux",
+      "input": null,
+      "output": "01_initial_image.png",
+      "prompts": [
+        "A wide nighttime view of a futuristic city of glass spires and suspended platforms, glowing teal light reflecting off polished surfaces. Small human figures move beneath floating skybridges while holographic signage illuminates the empty streets. The city appears silent and pristine under a starry sky.  ",
+        "night futuristic cityscape, glowing teal spires, floating skybridges, holographic signage, quiet streets, starry sky, "
+      ]
+    },
+    "image_expansion": {
+      "module": "content_generation",
+      "workflow": "image_expansion+flux",
+      "input": "01_initial_image.png",
+      "output": "02_expanded_image.png",
+      "prompts": [
+        "A wide nighttime view of a futuristic city of glass spires and suspended platforms, glowing teal light reflecting off polished surfaces. Small human figures move beneath floating skybridges while holographic signage illuminates the empty streets. The city appears silent and pristine under a starry sky.  ",
+        "night futuristic cityscape, glowing teal spires, floating skybridges, holographic signage, quiet streets, starry sky, "
+      ]
+    },
+    "image_upscale_x2": {
+      "module": "content_generation",
+      "workflow": "image_upscale+esrgan",
+      "input": "02_expanded_image.png",
+      "output": "03_expanded_image_x2.png"
+    },
+    "image_upscale_x4": {
+      "module": "content_generation",
+      "workflow": "image_upscale+esrgan",
+      "input": "03_expanded_image_x2.png",
+      "output": "03_expanded_image_x4.png"
+    }
+  }
+}

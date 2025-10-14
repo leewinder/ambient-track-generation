@@ -1,0 +1,182 @@
+{
+  "8": {
+    "inputs": {
+      "samples": [
+        "31",
+        0
+      ],
+      "vae": [
+        "39",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "9": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "27": {
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage",
+    "_meta": {
+      "title": "EmptySD3LatentImage"
+    }
+  },
+  "31": {
+    "inputs": {
+      "seed": 1,
+      "steps": 25,
+      "cfg": 0.8,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "62",
+        0
+      ],
+      "positive": [
+        "41",
+        0
+      ],
+      "negative": [
+        "42",
+        0
+      ],
+      "latent_image": [
+        "27",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "38": {
+    "inputs": {
+      "unet_name": "STOIQO NewReality Flux1 Dev - Alpha 2.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "39": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "40": {
+    "inputs": {
+      "clip_name1": "clip_l.safetensors",
+      "clip_name2": "t5xxl_fp16.safetensors",
+      "type": "flux",
+      "device": "default"
+    },
+    "class_type": "DualCLIPLoader",
+    "_meta": {
+      "title": "DualCLIPLoader"
+    }
+  },
+  "41": {
+    "inputs": {
+      "clip_l": "masterpiece, best quality, ultra-detailed, a lone figure in a vibrant red cloak on a misty shoreline, a colossal ruined mech half-submerged in the water, giant abandoned mech, weathered, corroded, battle-damaged, low angle shot, \n\nIn the style of ff-td,\n\ncinematic concept art, ethereal atmosphere, dramatic volumetric lighting, high contrast, muted color palette with a single pop of red, sense of epic scale, dense fog, shallow depth of field, award-winning digital painting, trending on ArtStation, smooth, detailed, shading.\n",
+      "t5xxl": "A wide nighttime view of a futuristic city of glass spires and suspended platforms, glowing teal light reflecting off polished surfaces. Small human figures move beneath floating skybridges while holographic signage illuminates the empty streets. The city appears silent and pristine under a starry sky.  In the style of ff-td. The image is an award-winning digital painting, the texture is smooth with visible lines and shading, giving it a detailed yet stylised presentation that would trend on ArtStation. The overall mood should be ethereal and atmospheric, defined by dramatic, high-contrast volumetric lighting.  The composition must evoke a sense of epic scale. Render the scene with a muted and desaturated color palette, but use vibrant emissive highlights to create key focal points. Finish the image with a shallow depth of field for a truly cinematic and professional feel.",
+      "guidance": 3.5,
+      "clip": [
+        "62",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncodeFlux",
+    "_meta": {
+      "title": "CLIPTextEncodeFlux"
+    }
+  },
+  "42": {
+    "inputs": {
+      "conditioning": [
+        "41",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "ConditioningZeroOut"
+    }
+  },
+  "59": {
+    "inputs": {
+      "lora_name": "Flux D - Anime Art Variant 1.safetensors",
+      "strength_model": 1.2,
+      "strength_clip": 1.2
+    },
+    "class_type": "LoraLoader",
+    "_meta": {
+      "title": "Load LoRA"
+    }
+  },
+  "61": {
+    "inputs": {
+      "lora_name": "Flux D - Daubrez Painterly Style.safetensors",
+      "strength_model": 0.35,
+      "strength_clip": 0.2
+    },
+    "class_type": "LoraLoader",
+    "_meta": {
+      "title": "Load LoRA"
+    }
+  },
+  "62": {
+    "inputs": {
+      "lora_name": "Flux D - Techno Digitalis.safetensors",
+      "strength_model": 0.75,
+      "strength_clip": 0.3,
+      "model": [
+        "38",
+        0
+      ],
+      "clip": [
+        "40",
+        0
+      ]
+    },
+    "class_type": "LoraLoader",
+    "_meta": {
+      "title": "Load LoRA"
+    }
+  },
+  "63": {
+    "inputs": {
+      "lora_name": "Flux D - FANCHA style v5.safetensors",
+      "strength_model": 1,
+      "strength_clip": 0.3
+    },
+    "class_type": "LoraLoader",
+    "_meta": {
+      "title": "Load LoRA"
+    }
+  }
+}

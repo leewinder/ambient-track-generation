@@ -84,13 +84,13 @@ class JsonFileLoader:
 
         return str(exc)
 
+    @staticmethod
+    def create_loader_function(loader_class: type, default_path: str) -> Callable[[str], 'JsonFileLoader']:
+        """ Factory function to create load_* convenience functions """
+        def load_function(file_path: str = default_path) -> 'JsonFileLoader':
+            try:
+                return loader_class(file_path)
+            except ValueError as exc:
+                raise ValueError(str(exc)) from None
 
-def create_loader_function(loader_class: type, default_path: str) -> Callable[[str], 'JsonFileLoader']:
-    """ Factory function to create load_* convenience functions """
-    def load_function(file_path: str = default_path) -> 'JsonFileLoader':
-        try:
-            return loader_class(file_path)
-        except ValueError as exc:
-            raise ValueError(str(exc)) from None
-
-    return load_function
+        return load_function

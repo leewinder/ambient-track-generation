@@ -1,0 +1,17 @@
+---
+description: An overview of this project and it's file structure
+alwaysApply: true
+---
+
+- An AI powered audio/video generation pipeline to create long videos with minimal animation playing music
+- All AI generation is done via ComfyUI
+
+- All steps used to create the end video are in src/modules
+- Every modules folder contains a requirements.txt file, and a single main.py file
+
+- All code is written in either Python (for the generation process) or bash files (for support functions)
+
+- All main project scripts are in the src folder
+- Within the src/utilities folder are common utilities that are used in all scripts
+
+- The project is powered by the root "configuration.json" file which defines all properties of the generation process
