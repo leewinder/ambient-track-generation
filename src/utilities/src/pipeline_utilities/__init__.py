@@ -12,11 +12,21 @@ from .configuration import (
     Step
 )
 
+# Import and expose ComfyUI utilities
+from .comfyui import (
+    ComfyUIServer,
+    ComfyUIWorkflow,
+    ComfyUIOutput
+)
+
 __all__ = [
     'ConfigurationModel',
-    'ConfigurationLoader', 
+    'ConfigurationLoader',
     'load_configuration',
     'GenerationConfig',
     'Workflow',
-    'Step'
+    'Step',
+    'ComfyUIServer',
+    'ComfyUIWorkflow',
+    'ComfyUIOutput'
 ]
