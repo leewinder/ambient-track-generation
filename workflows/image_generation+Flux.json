@@ -71,7 +71,7 @@
   },
   "38": {
     "inputs": {
-      "unet_name": "STOIQO NewReality Flux1 Dev - Alpha 2.safetensors",
+      "unet_name": "Lyh Anime Flux v4 niji.safetensors",
       "weight_dtype": "default"
     },
     "class_type": "UNETLoader",
@@ -151,9 +151,9 @@
   },
   "62": {
     "inputs": {
-      "lora_name": "Flux D - Techno Digitalis.safetensors",
-      "strength_model": 0.75,
-      "strength_clip": 0.3,
+      "lora_name": "Flux D - Watercolor painting.safetensors",
+      "strength_model": 0.5,
+      "strength_clip": 0.5,
       "model": [
         "38",
         0

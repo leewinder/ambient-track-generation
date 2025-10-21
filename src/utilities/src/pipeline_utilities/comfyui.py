@@ -528,28 +528,34 @@ class ComfyUIOutput:
         output_file_path = None
 
         for _, node_output in outputs.items():
-            if 'images' in node_output:
-                images = node_output['images']
-                if images and len(images) > 0:
-                    # Get the first image
-                    image_info = images[0]
-                    filename = image_info.get('filename', '')
-                    subfolder = image_info.get('subfolder', '')
+            # Check for different output types (images, audio, video)
+            for output_type in ['images', 'audio', 'video']:
+                if output_type in node_output:
+                    output_items = node_output[output_type]
+                    if output_items and len(output_items) > 0:
+                        # Get the first output item
+                        output_info = output_items[0]
+                        filename = output_info.get('filename', '')
+                        subfolder = output_info.get('subfolder', '')
 
-                    if filename:
-                        # Construct the full path using ComfyUI's output directory
-                        if subfolder:
-                            full_output_dir = comfyui_output_dir / subfolder
-                        else:
-                            full_output_dir = comfyui_output_dir
+                        if filename:
+                            # Construct the full path using ComfyUI's output directory
+                            if subfolder:
+                                full_output_dir = comfyui_output_dir / subfolder
+                            else:
+                                full_output_dir = comfyui_output_dir
 
-                        output_file_path = full_output_dir / filename
+                            output_file_path = full_output_dir / filename
 
-                        if output_file_path.exists():
-                            self.logger.info(f"Found output file: {output_file_path}")
-                            break
-                        else:
-                            self.logger.warning(f"Expected file not found: {output_file_path}")
+                            if output_file_path.exists():
+                                self.logger.info(f"Found output file: {output_file_path}")
+                                break
+                            else:
+                                self.logger.warning(f"Expected file not found: {output_file_path}")
+
+                # Break outer loop if we found a valid output file
+                if output_file_path and output_file_path.exists():
+                    break
 
         if not output_file_path or not output_file_path.exists():
             # Log the full outputs structure for debugging

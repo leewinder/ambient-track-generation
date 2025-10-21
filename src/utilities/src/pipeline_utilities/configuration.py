@@ -11,9 +11,11 @@ from .pydantics import StrictBaseModel, JsonFileLoader
 # Public API - functions and classes that external scripts should use
 __all__ = [
     'GenerationConfig',
+    'VideoConfig',
     'ComfyUIConfig',
     'Workflow',
     'Step',
+    'AudioStitcherStep',
     'ConfigurationModel',
     'ConfigurationLoader',
     'load_configuration'
@@ -25,6 +27,14 @@ class GenerationConfig(StrictBaseModel):
     seed: Optional[int] = Field(
         default_factory=lambda: int(time.time()),
         description="Seed for generation, defaults to current epoch time",
+        gt=0
+    )
+
+
+class VideoConfig(StrictBaseModel):
+    """ Configuration for video settings """
+    length: float = Field(
+        description="Video length in minutes",
         gt=0
     )
 
@@ -78,6 +88,11 @@ class Step(StrictBaseModel):
         default_factory=list,
         description="Prompts for the step"
     )
+    passes: Optional[int] = Field(
+        default=None,
+        description="Number of passes to execute (if present, outputs will be numbered)",
+        gt=0
+    )
 
     @field_validator('prompts')
     @classmethod
@@ -88,6 +103,38 @@ class Step(StrictBaseModel):
                 if not prompt or prompt.strip() == "":
                     raise ValueError("Prompts cannot contain empty strings")
         return v
+
+
+class AudioStitcherStep(StrictBaseModel):
+    """ Audio stitcher step configuration """
+    module: str = Field(
+        description="Module name for the step",
+        min_length=1
+    )
+    input: Optional[str] = Field(
+        default=None,
+        description="Input for the step"
+    )
+    output: str = Field(
+        description="Output for the step",
+        min_length=1
+    )
+    stitch_fade: float = Field(
+        description="Fade duration in seconds for cross-fading between samples",
+        gt=0
+    )
+    intro_fade: float = Field(
+        description="Fade-in duration in seconds for the final audio",
+        ge=0
+    )
+    outro_fade: float = Field(
+        description="Fade-out duration in seconds for the final audio",
+        ge=0
+    )
+    normalisation: float = Field(
+        description="Headroom in dB for audio normalization",
+        ge=0
+    )
 
 
 class ConfigurationModel(StrictBaseModel):
@@ -104,6 +151,10 @@ class ConfigurationModel(StrictBaseModel):
         default_factory=GenerationConfig,
         description="Generation configuration"
     )
+    video: Optional[VideoConfig] = Field(
+        default=None,
+        description="Video configuration"
+    )
     comfyui: Optional[ComfyUIConfig] = Field(
         default_factory=ComfyUIConfig,
         description="ComfyUI server configuration"
@@ -112,7 +163,7 @@ class ConfigurationModel(StrictBaseModel):
         description="Dictionary of workflows keyed by name",
         min_length=1
     )
-    steps: Dict[str, Step] = Field(
+    steps: Dict[str, Union[Step, AudioStitcherStep]] = Field(
         description="Dictionary of steps keyed by step name",
         min_length=1
     )
@@ -121,9 +172,10 @@ class ConfigurationModel(StrictBaseModel):
     def validate_workflow_references(self) -> 'ConfigurationModel':
         """ Validate that step workflows reference existing workflow names """
         for step_name, step in self.steps.items():
-            if step.workflow not in self.workflows:
+            # Only validate workflow references for regular Step objects
+            if isinstance(step, Step) and step.workflow not in self.workflows:
                 raise ValueError(f"Step '{step_name}' references unknown workflow '{step.workflow}'")
-        
+
         return self
 
     @model_validator(mode='after')
@@ -131,6 +183,10 @@ class ConfigurationModel(StrictBaseModel):
         """ Validate that step prompts count matches workflow modifiers prompt references """
         # Validate each step
         for step_name, step in self.steps.items():
+            # Only validate prompt counts for regular Step objects
+            if not isinstance(step, Step):
+                continue
+
             workflow = self.workflows.get(step.workflow)
             if workflow and workflow.modifiers:
                 # Find highest prompt index referenced in modifiers
@@ -146,19 +202,19 @@ class ConfigurationModel(StrictBaseModel):
                                 max_prompt_index = max(max_prompt_index, prompt_index)
                         except (ValueError, IndexError):
                             continue
-                
+
                 # Validate step has enough prompts
                 if max_prompt_index >= 0:
                     step_prompts_count = len(step.prompts) if step.prompts else 0
                     required_count = max_prompt_index + 1
-                    
+
                     if step_prompts_count < required_count:
                         raise ValueError(
                             f"Step '{step_name}' has {step_prompts_count} prompts but workflow "
                             f"'{step.workflow}' modifiers reference prompts[0] through prompts[{max_prompt_index}] "
                             f"(requires {required_count} prompts)"
                         )
-        
+
         return self
 
 

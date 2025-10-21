@@ -15,3 +15,4 @@ alwaysApply: true
 - Within the src/utilities folder are common utilities that are used in all scripts
 
 - The project is powered by the root "configuration.json" file which defines all properties of the generation process
+- This configuration file is read into the configuration.py Pydantic object which all scripts use

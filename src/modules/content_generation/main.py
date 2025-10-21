@@ -4,6 +4,7 @@
 import json
 import time
 import uuid
+from pathlib import Path
 from typing import Dict, Any
 
 from pipeline_utilities.args import parse_arguments
@@ -37,6 +38,86 @@ class ContentGenerator:
         except json.JSONDecodeError as exc:
             raise ValueError(f"Invalid JSON in workflow file: {exc}") from exc
 
+    def _execute_single_pass(self, step_config: Any, workflow_name: str,
+                             workflow_config: Any, config_data: Any, output_filename: str,
+                             seed_offset: int = 0) -> None:
+        """ Execute a single pass of workflow generation """
+        # Load workflow file
+        workflow_data = self.load_workflow_file(workflow_name)
+
+        # Store original seed and apply offset
+        original_seed = config_data.generation.seed
+        modified_seed = original_seed + seed_offset
+        config_data.generation.seed = modified_seed
+
+        if seed_offset > 0:
+            self.logger.info(
+                f"Using modified seed: {modified_seed} (original: {original_seed}, offset: +{seed_offset})")
+
+        try:
+            # Initialize ComfyUI utilities
+            comfyui_config = config_data.comfyui
+            client_id = str(uuid.uuid4())
+
+            server = ComfyUIServer(
+                str(comfyui_config.server),
+                comfyui_config.check_interval,
+                self.logger
+            )
+
+            workflow = ComfyUIWorkflow(
+                str(comfyui_config.server),
+                client_id,
+                self.logger
+            )
+
+            output = ComfyUIOutput(
+                str(comfyui_config.server),
+                comfyui_config.output,
+                self.logger
+            )
+
+            # Apply modifiers to workflow
+            if workflow_config.modifiers:
+                workflow_data, modifications = workflow.apply_modifiers(
+                    workflow_data,
+                    workflow_config.modifiers,
+                    step_config,
+                    config_data
+                )
+
+                # Log modifications made
+                if modifications:
+                    self.logger.info("Applied modifiers to workflow:")
+                    for mod in modifications:
+                        if mod['input_field'] == 'value':
+                            self.logger.info(f"  {mod['node_name']}: {mod['new_value']}")
+                        else:
+                            self.logger.info(f"  {mod['node_name']} ({mod['input_field']}): {mod['new_value']}")
+                else:
+                    self.logger.info("No modifiers were applied to workflow")
+            else:
+                self.logger.info("No modifiers defined for workflow")
+
+            # Wait for server availability
+            server.wait_until_available()
+
+            # Submit workflow
+            prompt_id = workflow.submit(workflow_data)
+
+            # Monitor execution
+            workflow.monitor(prompt_id)
+
+            # Get outputs
+            outputs = output.get_outputs(prompt_id)
+
+            # Copy output file
+            output.copy_output_file(outputs, output_filename)
+
+        finally:
+            # Restore original seed
+            config_data.generation.seed = original_seed
+
     def execute_step(self, step_name: str, config_data: Any) -> None:
         """ Execute a single step from the configuration """
         start_time = time.time()
@@ -59,67 +140,35 @@ class ContentGenerator:
         self.logger.info(f"Workflow: {workflow_name}")
         self.logger.info(f"Output: {step_config.output}")
 
-        # Load workflow file
-        workflow_data = self.load_workflow_file(workflow_name)
-
-        # Initialize ComfyUI utilities
-        comfyui_config = config_data.comfyui
-        client_id = str(uuid.uuid4())
-
-        server = ComfyUIServer(
-            str(comfyui_config.server),
-            comfyui_config.check_interval,
-            self.logger
-        )
-
-        workflow = ComfyUIWorkflow(
-            str(comfyui_config.server),
-            client_id,
-            self.logger
-        )
-
-        output = ComfyUIOutput(
-            str(comfyui_config.server),
-            comfyui_config.output,
-            self.logger
-        )
-
-        # Apply modifiers to workflow
-        if workflow_config.modifiers:
-            workflow_data, modifications = workflow.apply_modifiers(
-                workflow_data,
-                workflow_config.modifiers,
-                step_config,
-                config_data
-            )
-
-            # Log modifications made
-            if modifications:
-                self.logger.info("Applied modifiers to workflow:")
-                for mod in modifications:
-                    if mod['input_field'] == 'value':
-                        self.logger.info(f"  {mod['node_name']}: {mod['new_value']}")
-                    else:
-                        self.logger.info(f"  {mod['node_name']} ({mod['input_field']}): {mod['new_value']}")
-            else:
-                self.logger.info("No modifiers were applied to workflow")
+        # Check if passes field is present
+        if step_config.passes is None:
+            # Execute once with original output filename and seed
+            self.logger.info("Executing single pass (no passes field)")
+            self._execute_single_pass(step_config, workflow_name,
+                                      workflow_config, config_data, step_config.output,
+                                      seed_offset=0)
         else:
-            self.logger.info("No modifiers defined for workflow")
+            # Execute multiple passes with modified filenames and incremented seeds
+            passes = step_config.passes
+            self.logger.info(f"Executing {passes} passes")
 
-        # Wait for server availability
-        server.wait_until_available()
+            for pass_num in range(1, passes + 1):
+                self.logger.info(f"Executing pass {pass_num}/{passes}")
 
-        # Submit workflow
-        prompt_id = workflow.submit(workflow_data)
+                # Modify output filename to include pass number
+                output_path = Path(step_config.output)
+                stem = output_path.stem
+                suffix = output_path.suffix
+                modified_filename = f"{stem}_pass_{pass_num:03d}{suffix}"
 
-        # Monitor execution
-        workflow.monitor(prompt_id)
+                self.logger.info(f"Output filename: {modified_filename}")
 
-        # Get outputs
-        outputs = output.get_outputs(prompt_id)
+                # Calculate seed offset (pass 1 = +0, pass 2 = +1, pass 3 = +2, etc.)
+                seed_offset = pass_num - 1
 
-        # Copy output file
-        output.copy_output_file(outputs, step_config.output)
+                self._execute_single_pass(step_config, workflow_name,
+                                          workflow_config, config_data, modified_filename,
+                                          seed_offset=seed_offset)
 
         # Log completion
         duration = time.time() - start_time
@@ -127,7 +176,10 @@ class ContentGenerator:
         self.logger.info(f"Step name: {step_name}")
         self.logger.info(f"Workflow: {workflow_name}")
         self.logger.info(f"Module: {step_config.module}")
-        self.logger.info(f"Output file: {step_config.output}")
+        if step_config.passes is None:
+            self.logger.info(f"Output file: {step_config.output}")
+        else:
+            self.logger.info(f"Output files: {step_config.passes} files with _pass_XXX suffix")
         self.logger.info(f"Duration: {duration:.2f} seconds")
 
 

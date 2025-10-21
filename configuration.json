@@ -1,8 +1,11 @@
 {
-  "name": "Night View of Elyria (Beeple)",
+  "name": "A Future",
   "debug": true,
   "generation": {
-    "seed": 91
+    "seed": 93
+  },
+  "video": {
+    "length": 60
   },
   "comfyui": {
     "server": "http://kingdom.local:8188/",
@@ -18,7 +21,7 @@
         "KSampler::seed": "<seed>",
         "KSampler::cfg": 0.8,
         "KSampler::steps": 25,
-        "Load Diffusion Model::unet_name": "STOIQO NewReality Flux1 Dev - Alpha 2.safetensors"
+        "Load Diffusion Model::unet_name": "Lyh Anime Flux v4 niji.safetensors"
       }
     },
     "image_expansion+flux": {
@@ -39,6 +42,16 @@
         "Load Image::image": "<input>",
         "Load Upscale Model::model_name": "RealESRGAN_x2plus.pth"
       }
+    },
+    "audio_generation+ace-step": {
+      "modifiers": {
+        "TextEncodeAceStepAudio::tags": "<prompts[0]>",
+        "TextEncodeAceStepAudio::lyrics": "<prompts[1]>",
+        "EmptyAceStepLatentAudio::seconds": 60,
+        "KSampler::seed": "<seed>",
+        "KSampler::cfg": 5.0,
+        "KSampler::steps": 50
+      }
     }
   },
   "steps": {
@@ -48,8 +61,8 @@
       "input": null,
       "output": "01_initial_image.png",
       "prompts": [
-        "A wide nighttime view of a futuristic city of glass spires and suspended platforms, glowing teal light reflecting off polished surfaces. Small human figures move beneath floating skybridges while holographic signage illuminates the empty streets. The city appears silent and pristine under a starry sky.  ",
-        "night futuristic cityscape, glowing teal spires, floating skybridges, holographic signage, quiet streets, starry sky, "
+        "Low-angle view of a sleek, futuristic hovercar (spinner) flying past colossal neon skyscrapers at dawn. Dynamic lines, soft volumetric clouds.  A highly detailed anime background illustration, rendered with volumetric lighting, atmospheric haze, and clean lines, capturing the style of Makoto Shinkai with a vibrant cinematic palette.",
+        "synthwave city, high energy, futuristic hovercar, dynamic view, vibrant neon, towering skyscrapers, anime background, neon reflections, volumetric fog, Makoto Shinkai style"
       ]
     },
     "image_expansion": {
@@ -58,8 +71,8 @@
       "input": "01_initial_image.png",
       "output": "02_expanded_image.png",
       "prompts": [
-        "A wide nighttime view of a futuristic city of glass spires and suspended platforms, glowing teal light reflecting off polished surfaces. Small human figures move beneath floating skybridges while holographic signage illuminates the empty streets. The city appears silent and pristine under a starry sky.  ",
-        "night futuristic cityscape, glowing teal spires, floating skybridges, holographic signage, quiet streets, starry sky, "
+        "Low-angle view of a sleek, futuristic hovercar (spinner) flying past colossal neon skyscrapers at dawn. Dynamic lines, soft volumetric clouds.  A highly detailed anime background illustration, rendered with volumetric lighting, atmospheric haze, and clean lines, capturing the style of Makoto Shinkai with a vibrant cinematic palette.",
+        "synthwave city, high energy, futuristic hovercar, dynamic view, vibrant neon, towering skyscrapers, anime background, neon reflections, volumetric fog, Makoto Shinkai style"
       ]
     },
     "image_upscale_x2": {
@@ -73,6 +86,25 @@
       "workflow": "image_upscale+esrgan",
       "input": "03_expanded_image_x2.png",
       "output": "03_expanded_image_x4.png"
+    },
+    "audio_generation": {
+      "passes": 3,
+      "prompts": [
+        "driving arpeggios, progressive melody, 60-70 BPM, motivational mood, bright synth leads, subtle guitar sample, lo-fi beats, warm analog synth, synthwave rhythm, 80s drum machine, tape hiss, sub bass pulse, no vocals",
+        "[instrumental]"
+      ],
+      "module": "content_generation",
+      "workflow": "audio_generation+ace-step",
+      "output": "04_audio.mp3"
+    },
+    "audio_stitching": {
+      "module": "audio_stitcher",
+      "stitch_fade": 5,
+      "intro_fade": 30,
+      "outro_fade": 5,
+      "normalisation": 0.1,
+      "input": "04_audio.mp3",
+      "output": "05_full_audio.mp3"
     }
   }
 }
