@@ -106,7 +106,7 @@ class ComfyUIWorkflow:
             )
 
             # Log the response details for debugging
-            self.logger.info(f"ComfyUI response status: {response.status_code}")
+            self.logger.debug(f"ComfyUI response status: {response.status_code}")
             if response.status_code != 200:
                 self.logger.error(f"ComfyUI error response: {response.text}")
 
@@ -148,11 +148,11 @@ class ComfyUIWorkflow:
                     message_type = data.get('type')
 
                     if message_type == 'execution_cached':
-                        self.logger.info("Job using cached result")
+                        self.logger.debug("Job using cached result")
                         # Don't break - continue monitoring for actual completion
 
                     elif message_type == 'execution_start':
-                        self.logger.info("  Job execution started")
+                        self.logger.debug("  Job execution started")
 
                     elif message_type == 'progress':
                         # Handle progress updates
@@ -174,48 +174,48 @@ class ComfyUIWorkflow:
                             if remaining_time:
                                 progress_msg += f" - ETA: {remaining_time}"
 
-                            self.logger.info(progress_msg)
+                            self.logger.debug(progress_msg)
                             if node_id:
-                                self.logger.info(f"    Processing: {node_name}")
+                                self.logger.debug(f"    Processing: {node_name}")
 
-                    elif message_type == 'executing':
-                        # Handle node execution start
-                        executing_node_id = data.get('data', {}).get('node')
-                        if executing_node_id and executing_node_id != self.progress_state.get('current_node'):
-                            node_name = self._get_node_display_name(executing_node_id)
-                            self.logger.info(f"  Starting: {node_name}")
-                            self.progress_state['current_node'] = executing_node_id
-
-                    elif message_type == 'executed':
-                        # Handle node completion
-                        executed_node_id = data.get('data', {}).get('node')
-                        if executed_node_id:
-                            node_name = self._get_node_display_name(executed_node_id)
-                            self.logger.info(f"  Completed: {node_name}")
-
-                            # Check if this is a SaveImage/SaveVideo/SaveAudio node (final output)
-                            if executed_node_id in self.node_mapping:
-                                node_info = self.node_mapping[executed_node_id]
-                                class_type = node_info.get('class_type', '')
-                                if class_type in ['SaveImage', 'SaveVideo', 'SaveAudio']:
-                                    self.logger.info("  Final output node completed - checking job status")
-                                    # Give a moment for the job to fully complete
-                                    time.sleep(1)
-                                    # Check if job is actually complete by querying history
-                                    try:
-                                        response = requests.get(f"{self.base_url}/history/{prompt_id}", timeout=5)
-                                        if response.status_code == 200:
-                                            history_data = response.json()
-                                            if prompt_id in history_data:
-                                                self.logger.info("  Job execution completed successfully")
-                                                break
-                                    except requests.RequestException:
-                                        # If we can't check history, assume it's complete
-                                        self.logger.info("  Job execution completed successfully")
-                                        break
+                    elif message_type == 'execution_success':
+                        # Handle workflow completion - primary completion signal
+                        self.logger.info("  Workflow execution completed successfully")
+                        success_data = data.get('data', {})
+                        if success_data:
+                            self.logger.debug(f"  Success data: {success_data}")
+                        # Give time for final processing and file writing
+                        self.logger.debug("  Waiting for final processing to complete...")
+                        time.sleep(3)
+                        # Check if job is actually complete by querying history
+                        try:
+                            response = requests.get(f"{self.base_url}/history/{prompt_id}", timeout=5)
+                            self.logger.debug(f"  History check response: {response.status_code}")
+                            if response.status_code == 200:
+                                history_data = response.json()
+                                self.logger.debug(f"  History data keys: {list(history_data.keys())}")
+                                if prompt_id in history_data:
+                                    self.logger.debug("  Job execution completed successfully (via execution_success)")
+                                    break
+                                else:
+                                    self.logger.debug(f"  Prompt ID {prompt_id} not found in history")
+                                    # Log some of the history data for debugging
+                                    if history_data:
+                                        sample_keys = list(history_data.keys())[:3]  # Show first 3 keys
+                                        self.logger.debug(f"  Available prompt IDs: {sample_keys}")
+                                    else:
+                                        self.logger.debug("  History is empty")
+                            else:
+                                self.logger.debug(f"  History check failed with status: {response.status_code}")
+                        except requests.RequestException as e:
+                            self.logger.debug(f"  History check exception: {e}")
+                            # If we can't check history, assume it's complete
+                            self.logger.debug("  Job execution completed successfully (via execution_success)")
+                            break
 
                     elif message_type == 'execution_complete':
-                        self.logger.info("  Job execution completed successfully")
+                        # Handle workflow completion - alternative completion signal
+                        self.logger.debug("  Job execution completed successfully (via execution_complete)")
                         break
 
                     elif message_type == 'execution_error':
@@ -232,17 +232,20 @@ class ComfyUIWorkflow:
                 except websocket.WebSocketTimeoutException:
                     # Periodic check: if we haven't received messages for a while,
                     # check if the job is actually complete
+                    self.logger.debug(f"WebSocket timeout - current_step: {self.progress_state.get('current_step', 0)}")
                     if self.progress_state.get('current_step', 0) > 0:
                         try:
                             response = requests.get(f"{self.base_url}/history/{prompt_id}", timeout=5)
                             if response.status_code == 200:
                                 history_data = response.json()
                                 if prompt_id in history_data:
-                                    self.logger.info(
+                                    self.logger.debug(
                                         "  Job execution completed successfully (detected via periodic check)")
                                     break
-                        except requests.RequestException:
-                            pass
+                        except requests.RequestException as e:
+                            self.logger.debug(f"History check failed: {e}")
+                    else:
+                        self.logger.debug("No progress made yet, continuing to wait...")
                     continue
 
         except websocket.WebSocketException as exc:
@@ -254,7 +257,7 @@ class ComfyUIWorkflow:
                 pass
 
     def apply_modifiers(self, workflow_data: Dict[str, Any], modifiers: Dict[str, Any],
-                        step_config: Any, config_data: Any) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+                        step_config: Any, config_data: Any, auth_data: Any = None) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
         """ Apply modifiers to workflow data and return modified workflow with modifications list """
         if not modifiers:
             return workflow_data, []
@@ -297,7 +300,7 @@ class ComfyUIWorkflow:
         # Process each modifier
         for modifier_name, modifier_value in modifiers.items():
             # Resolve placeholder values
-            resolved_value = self._resolve_placeholder(modifier_value, step_config, config_data)
+            resolved_value = self._resolve_placeholder(modifier_value, step_config, config_data, auth_data)
 
             # Parse modifier name for input field specification
             if '::' in modifier_name:
@@ -375,7 +378,7 @@ class ComfyUIWorkflow:
                     'inputs': node_info.get('inputs', {})
                 }
 
-        self.logger.info(f"Created mapping for {len(self.node_mapping)} nodes")
+        self.logger.debug(f"Created mapping for {len(self.node_mapping)} nodes")
 
     def _get_node_display_name(self, node_id: str) -> str:
         """ Get human-readable name for a node """
@@ -407,7 +410,7 @@ class ComfyUIWorkflow:
                     return f"~{remaining_time/3600:.1f}h"
         return ""
 
-    def _resolve_placeholder(self, value: Any, step_config: Any, config_data: Any) -> Any:
+    def _resolve_placeholder(self, value: Any, step_config: Any, config_data: Any, auth_data: Any = None) -> Any:
         """ Resolve placeholder values like <prompts[0]>, <seed>, etc. """
         if not isinstance(value, str):
             return value
@@ -448,6 +451,30 @@ class ComfyUIWorkflow:
 
             # Return as absolute path string (ComfyUI expects string)
             return str(input_path)
+
+        # Handle <authentication::fieldname> placeholders
+        if value.startswith('<authentication::') and value.endswith('>'):
+            try:
+                # Extract field name from <authentication::fieldname>
+                field_name = value[17:-1]  # Remove '<authentication::' and '>'
+
+                if not field_name.strip():
+                    raise ValueError(f"Empty authentication field name in placeholder '{value}'")
+
+                if auth_data is None:
+                    raise ValueError(f"Cannot resolve '{value}': authentication data not loaded")
+
+                # Get authentication value (returns empty string if not found)
+                auth_value = auth_data.get(field_name, "")
+
+                if not auth_value:
+                    raise ValueError(
+                        f"Authentication field '{field_name}' is missing or empty in authentication.json")
+
+                return auth_value
+
+            except (ValueError, IndexError) as exc:
+                raise ValueError(f"Invalid authentication placeholder '{value}': {exc}") from exc
 
         # Return as-is if not a recognized placeholder
         return value
@@ -504,13 +531,13 @@ class ComfyUIOutput:
 
                 # If we get here, history isn't ready yet - wait and retry
                 if attempt < max_retries - 1:
-                    self.logger.info(f"History not ready, retrying in {retry_delay:.1f}s...")
+                    self.logger.debug(f"History not ready, retrying in {retry_delay:.1f}s...")
                     time.sleep(retry_delay)
                     retry_delay *= 1.5  # Exponential backoff
 
             except requests.RequestException as exc:
                 if attempt < max_retries - 1:
-                    self.logger.warning(f"Request failed (attempt {attempt + 1}): {exc}")
+                    self.logger.debug(f"Request failed (attempt {attempt + 1}): {exc}")
                     time.sleep(retry_delay)
                     retry_delay *= 1.5
                 else:
@@ -520,67 +547,86 @@ class ComfyUIOutput:
         raise RuntimeError(f"No history found for prompt_id: {prompt_id} after {max_retries} attempts")
 
     def copy_output_file(self, outputs: Dict[str, Any], output_filename: str) -> None:
-        """ Copy output file from ComfyUI to interim directory """
+        """ Copy output files from ComfyUI to interim directory with smart naming """
+        # Validate output filename has an extension
+        if '.' not in output_filename:
+            raise ValueError(f"Output filename must have an extension: {output_filename}")
+
         # Get ComfyUI's actual output directory
         comfyui_output_dir = self._get_output_directory()
 
-        # Find the output file in the outputs
-        output_file_path = None
+        # Extract base name and extension from output filename
+        base_name, _ = output_filename.rsplit('.', 1)
+
+        # Collect all output files
+        output_files = []
 
         for _, node_output in outputs.items():
-            # Check for different output types (images, audio, video)
-            for output_type in ['images', 'audio', 'video']:
+            # Check for different output types (images, audio, video, mureka)
+            for output_type in ['images', 'audio', 'video', 'mureka']:
                 if output_type in node_output:
                     output_items = node_output[output_type]
                     if output_items and len(output_items) > 0:
-                        # Get the first output item
-                        output_info = output_items[0]
-                        filename = output_info.get('filename', '')
-                        subfolder = output_info.get('subfolder', '')
+                        for output_info in output_items:
+                            filename = output_info.get('filename', '')
+                            subfolder = output_info.get('subfolder', '')
 
-                        if filename:
-                            # Construct the full path using ComfyUI's output directory
-                            if subfolder:
-                                full_output_dir = comfyui_output_dir / subfolder
-                            else:
-                                full_output_dir = comfyui_output_dir
+                            if filename:
+                                # Construct the full path using ComfyUI's output directory
+                                if subfolder:
+                                    full_output_dir = comfyui_output_dir / subfolder
+                                else:
+                                    full_output_dir = comfyui_output_dir
 
-                            output_file_path = full_output_dir / filename
+                                output_file_path = full_output_dir / filename
 
-                            if output_file_path.exists():
-                                self.logger.info(f"Found output file: {output_file_path}")
-                                break
-                            else:
-                                self.logger.warning(f"Expected file not found: {output_file_path}")
+                                if output_file_path.exists():
+                                    self.logger.debug(f"Found output file: {output_file_path}")
+                                    output_files.append(output_file_path)
+                                else:
+                                    self.logger.warning(f"Expected file not found: {output_file_path}")
 
-                # Break outer loop if we found a valid output file
-                if output_file_path and output_file_path.exists():
-                    break
-
-        if not output_file_path or not output_file_path.exists():
-            # Log the full outputs structure for debugging
-            self.logger.error("Output file not found. Full outputs structure:")
-            self.logger.error(f"{json.dumps(outputs, indent=2)}")
-
+        if not output_files:
             # List available files in the ComfyUI output directory
-            self.logger.error(f"Available files in {comfyui_output_dir}:")
             if comfyui_output_dir.exists():
                 files = list(comfyui_output_dir.rglob("*.png")) + \
                     list(comfyui_output_dir.rglob("*.jpg")) + list(comfyui_output_dir.rglob("*.jpeg"))
-                self.logger.error(f"  {[f.name for f in files]}")
+                self.logger.debug(f"Available files in {comfyui_output_dir}: {[f.name for f in files]}")
             else:
-                self.logger.error(f"  Directory does not exist: {comfyui_output_dir}")
+                self.logger.debug(f"Directory does not exist: {comfyui_output_dir}")
 
-            raise FileNotFoundError(f"Output file not found: {output_file_path}")
+            raise FileNotFoundError("No output files found")
+
+        # Group files by extension
+        files_by_extension = {}
+        for file_path in output_files:
+            extension = file_path.suffix.lower()
+            if extension not in files_by_extension:
+                files_by_extension[extension] = []
+            files_by_extension[extension].append(file_path)
 
         # Ensure interim directory exists
-        interim_path = Paths.get_interim_path(output_filename)
-        interim_path.parent.mkdir(parents=True, exist_ok=True)
+        interim_dir = Paths.get_interim_path(output_filename).parent
+        interim_dir.mkdir(parents=True, exist_ok=True)
 
-        # Copy the file
-        shutil.copy2(output_file_path, interim_path)
-
-        self.logger.info(f"Copied output to: {interim_path}")
+        # Copy files with smart naming
+        for extension, files in files_by_extension.items():
+            if len(files) == 1:
+                # Single file of this type - use base name with correct extension
+                final_name = f"{base_name}{extension}"
+                final_path = interim_dir / final_name
+                shutil.copy2(files[0], final_path)
+                self.logger.debug(f"Copied output to: {final_path}")
+            else:
+                # Multiple files of same type - number them
+                for i, file_path in enumerate(files, 1):
+                    if i == 1:
+                        final_name = f"{base_name}{extension}"
+                    else:
+                        final_name = f"{base_name}-{i}{extension}"
+                    final_path = interim_dir / final_name
+                    shutil.copy2(file_path, final_path)
+                    self.logger.debug(f"Copied output to: {final_path}")
 
     def _get_output_directory(self) -> Path:
         """ Get ComfyUI's output directory from configuration """

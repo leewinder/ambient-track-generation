@@ -8,6 +8,8 @@ env/
 output/
 archive/
 batch copy.json
+authentication.json
+suno.com
 
 # Python
 __pycache__/

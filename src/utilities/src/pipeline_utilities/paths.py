@@ -1,5 +1,4 @@
 """ Common paths used throughout the project """
-import os
 from pathlib import Path
 from typing import Final
 
@@ -13,7 +12,7 @@ __all__ = [
 class Project:
     """ Core project utilities """
     CONFIGURATION: Final[str] = "configuration.json"
-    
+
     @staticmethod
     def get_root() -> Path:
         """ Traverse up the directory tree until we find a folder with configuration.json """
@@ -29,6 +28,11 @@ class Project:
         """ Get the full path to a configuration file as string """
         return str(Project.get_root() / Project.CONFIGURATION)
 
+    @staticmethod
+    def get_root_path(filename: str) -> str:
+        """ Get the full path to a file in the project root """
+        return str(Project.get_root() / filename)
+
 
 class Paths:
     """ Defines the path properties that are used throughout the generation process """
@@ -36,14 +40,14 @@ class Paths:
     INTERIM: Final[str] = "interim"
     ARCHIVE: Final[str] = "archive"
     WORKFLOWS: Final[str] = "workflows"
-    
+
     @staticmethod
     def get_interim_path(filename: str) -> Path:
         """ Get the full path to a working file in the working directory """
         return (
-            Project.get_root() / 
-            Paths.OUTPUT / 
-            Paths.INTERIM / 
+            Project.get_root() /
+            Paths.OUTPUT /
+            Paths.INTERIM /
             filename
         )
 
@@ -51,9 +55,9 @@ class Paths:
     def get_archive_path(filename: str) -> Path:
         """ Get the full path to a working file in the working directory """
         return (
-            Project.get_root() / 
-            Paths.OUTPUT / 
-            Paths.ARCHIVE / 
+            Project.get_root() /
+            Paths.OUTPUT /
+            Paths.ARCHIVE /
             filename
         )
 
@@ -61,7 +65,7 @@ class Paths:
     def get_workflows_path(filename: str) -> Path:
         """ Get the full path to a workflow file """
         return (
-            Project.get_root() / 
-            Paths.WORKFLOWS / 
+            Project.get_root() /
+            Paths.WORKFLOWS /
             filename
         )

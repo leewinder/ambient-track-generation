@@ -3,6 +3,7 @@
 
 import math
 import re
+import subprocess
 import time
 from pathlib import Path
 from typing import Any, List
@@ -48,9 +49,9 @@ class AudioStitcher:
         # Sort alphabetically (ascending order)
         matching_files.sort()
 
-        self.logger.info(f"Found {len(matching_files)} audio samples:")
+        self.logger.info(f"Found {len(matching_files)} audio samples")
         for file_path in matching_files:
-            self.logger.info(f"  {file_path.name}")
+            self.logger.debug(f"  {file_path.name}")
 
         return matching_files
 
@@ -80,7 +81,7 @@ class AudioStitcher:
             )
 
             normalized_samples.append(output_path)
-            self.logger.info(f"Saved normalized sample: {output_path.name}")
+            self.logger.debug(f"Saved normalized sample: {output_path.name}")
 
         return normalized_samples
 
@@ -97,11 +98,11 @@ class AudioStitcher:
 
         # Load first sample as base
         result = AudioSegment.from_mp3(str(normalized_samples[0]))
-        self.logger.info(f"Starting with: {normalized_samples[0].name}")
+        self.logger.debug(f"Starting with: {normalized_samples[0].name}")
 
         # Append remaining samples with cross-fade
         for i, sample_path in enumerate(normalized_samples[1:], 1):
-            self.logger.info(f"Adding sample {i+1}/{len(normalized_samples)}: {sample_path.name}")
+            self.logger.debug(f"Adding sample {i+1}/{len(normalized_samples)}: {sample_path.name}")
 
             sample = AudioSegment.from_mp3(str(sample_path))
             result = result.append(sample, crossfade=fade_ms)
@@ -140,44 +141,45 @@ class AudioStitcher:
 
         # Calculate how many loops we need
         loops_needed = math.ceil(target_duration_ms / sample_duration_ms)
-        self.logger.info(f"Need {loops_needed} loops to reach target duration")
+        self.logger.debug(f"Need {loops_needed} loops to reach target duration")
 
         # Start with the first sample
         result = stitched_sample
-        self.logger.info("Starting loop 1")
+        self.logger.debug("Starting loop 1")
 
         # Add additional loops with cross-fade
         stitch_fade_ms = int(step_config.stitch_fade * 1000)
 
         for loop_num in range(2, loops_needed + 1):
-            self.logger.info(f"Adding loop {loop_num}/{loops_needed}")
+            self.logger.debug(f"Adding loop {loop_num}/{loops_needed}")
             result = result.append(stitched_sample, crossfade=stitch_fade_ms)
 
         # Trim to exact target duration
         if len(result) > target_duration_ms:
-            self.logger.info(f"Trimming from {len(result) / 1000:.2f}s to {target_duration_ms / 1000:.2f}s")
+            self.logger.debug(f"Trimming from {len(result) / 1000:.2f}s to {target_duration_ms / 1000:.2f}s")
             result = result[:target_duration_ms]
 
         # Apply intro fade-in
         intro_fade_ms = int(step_config.intro_fade * 1000)
         if intro_fade_ms > 0:
-            self.logger.info(f"Applying {step_config.intro_fade}s intro fade-in")
+            self.logger.debug(f"Applying {step_config.intro_fade}s intro fade-in")
             result = result.fade_in(intro_fade_ms)
 
         # Apply outro fade-out
         outro_fade_ms = int(step_config.outro_fade * 1000)
         if outro_fade_ms > 0:
-            self.logger.info(f"Applying {step_config.outro_fade}s outro fade-out")
+            self.logger.debug(f"Applying {step_config.outro_fade}s outro fade-out")
             result = result.fade_out(outro_fade_ms)
 
         # Get final output path
         output_path = Paths.get_interim_path(step_config.output)
 
-        # Export final result at 256 kbps
-        result.export(
+        # Export final result at 256 kbps using FFmpeg to bypass pydub's WAV limitation
+        # for large audio files (>4GB uncompressed)
+        self.export_with_ffmpeg(
+            result,
             str(output_path),
-            format="mp3",
-            bitrate="256k"
+            "256k"
         )
 
         self.logger.info(f"Final audio saved: {step_config.output}")
@@ -192,13 +194,133 @@ class AudioStitcher:
         for normalized_file in normalized_samples:
             if normalized_file.exists():
                 normalized_file.unlink()
-                self.logger.info(f"Removed: {normalized_file.name}")
+                self.logger.debug(f"Removed: {normalized_file.name}")
 
         # Remove intermediate stitched file
         intermediate_path = Paths.get_interim_path(intermediate_output)
         if intermediate_path.exists():
             intermediate_path.unlink()
-            self.logger.info(f"Removed: {intermediate_output}")
+            self.logger.debug(f"Removed: {intermediate_output}")
+
+    def _get_ffmpeg_format_string(self, segment: AudioSegment) -> str:
+        """ Map AudioSegment sample width to FFmpeg format string """
+        if segment.sample_width == 1:
+            return 'u8'  # 8-bit unsigned
+        elif segment.sample_width == 2:
+            return 's16le'  # 16-bit signed little-endian
+        elif segment.sample_width == 4:
+            return 's32le'  # 32-bit signed little-endian
+        else:
+            raise ValueError(f"Unsupported sample width: {segment.sample_width}")
+
+    def _time_to_seconds(self, time_str: str) -> float:
+        """ Convert FFmpeg time string (HH:MM:SS.ms) to seconds """
+        try:
+            parts = time_str.split(':')
+            if len(parts) != 3:
+                return 0.0
+            hours = float(parts[0])
+            minutes = float(parts[1])
+            seconds = float(parts[2])
+            return hours * 3600 + minutes * 60 + seconds
+        except (ValueError, IndexError):
+            return 0.0
+
+    def _monitor_progress(self, stderr_fd, total_duration_seconds: float) -> None:
+        """ Monitor FFmpeg progress and log percentage complete """
+        last_logged_percent = -1
+
+        while True:
+            line = stderr_fd.readline()
+            if not line:
+                break
+
+            line_str = line.decode('utf-8', errors='ignore')
+
+            # Look for time progress
+            if 'time=' in line_str:
+                # Format: time=00:03:45.23
+                try:
+                    parts = line_str.split('time=')
+                    if len(parts) > 1:
+                        time_str = parts[1].split()[0]
+                        current_seconds = self._time_to_seconds(time_str)
+                        percent = (current_seconds / total_duration_seconds) * 100 if total_duration_seconds > 0 else 0
+
+                        # Only log every 1% to avoid spam
+                        percent_int = int(percent)
+                        if percent_int != last_logged_percent and percent_int >= 0 and percent_int <= 100:
+                            last_logged_percent = percent_int
+                            self.logger.debug(f"Encoding progress: {percent:.1f}%")
+                except (IndexError, ValueError, AttributeError):
+                    pass
+
+    def export_with_ffmpeg(self, segment: AudioSegment, output_path: str, bitrate: str) -> None:
+        """ Export AudioSegment directly to MP3 using FFmpeg, bypassing pydub's WAV limitation """
+        # Get FFmpeg format string
+        format_str = self._get_ffmpeg_format_string(segment)
+
+        # Get audio parameters
+        sample_rate = segment.frame_rate
+        channels = segment.channels
+        total_data_size = len(segment._data)  # pylint: disable=protected-access
+
+        self.logger.info("Exporting to MP3 using FFmpeg (direct from PCM)")
+        self.logger.debug(f"Format: {format_str}, {sample_rate}Hz, {channels}ch, {bitrate}bps")
+
+        # Build FFmpeg command
+        cmd = [
+            'ffmpeg',
+            '-f', format_str,  # Input format
+            '-ar', str(sample_rate),  # Sample rate
+            '-ac', str(channels),  # Channels
+            '-i', 'pipe:0',  # Read from stdin
+            '-codec:a', 'libmp3lame',  # MP3 codec
+            '-b:a', bitrate,  # Bitrate
+            '-y',  # Overwrite output file
+            output_path
+        ]
+
+        try:
+            # Start FFmpeg process
+            process = subprocess.Popen(
+                cmd,
+                stdin=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                stdout=subprocess.PIPE
+            )
+
+            # Send audio data in chunks to track progress
+            chunk_size = 1024 * 1024  # 1MB chunks
+            sent = 0
+            last_logged_percent = -1
+
+            while sent < total_data_size:
+                chunk = segment._data[sent:sent + chunk_size]  # pylint: disable=protected-access
+                process.stdin.write(chunk)
+                sent += len(chunk)
+
+                # Log progress every 5%
+                percent = (sent / total_data_size) * 100
+                if int(percent) // 5 > last_logged_percent // 5:
+                    last_logged_percent = int(percent)
+                    self.logger.debug(f"Encoding progress: {percent:.1f}%")
+
+            process.stdin.close()
+
+            # Wait for completion
+            return_code = process.wait()
+
+            if return_code != 0:
+                stderr_output = process.stderr.read().decode('utf-8', errors='ignore')
+                raise RuntimeError(f"FFmpeg failed with return code {return_code}\n{stderr_output}")
+
+            self.logger.debug("Encoding complete: 100.0%")
+
+        except FileNotFoundError as exc:
+            raise RuntimeError(
+                "FFmpeg not found. Please install FFmpeg (brew install ffmpeg or apt-get install ffmpeg)"
+            ) from exc
 
     def execute_step(self, step_name: str, config_data: Any) -> None:
         """ Execute a single audio stitching step from the configuration """
@@ -261,18 +383,18 @@ def main() -> None:
     # Parse arguments
     args = parse_arguments("Audio stitcher module for combining multiple audio samples")
 
-    # Setup logging
-    logger = EnhancedLogger.setup_pipeline_logging(
-        log_file=args.log_file,
-        debug=False,  # Could be made configurable
-        script_name="audio_stitcher"
-    )
-
     try:
-        # Load configuration
+        # Load configuration first to get debug setting
         config_path = Project.get_configuration()
         config_loader = load_configuration(config_path)
         config_data = config_loader.data
+
+        # Setup logging with debug setting from config
+        logger = EnhancedLogger.setup_pipeline_logging(
+            log_file=args.log_file,
+            debug=config_data.debug or False,
+            script_name="audio_stitcher"
+        )
 
         logger.info(f"Loaded configuration: {config_data.name}")
 

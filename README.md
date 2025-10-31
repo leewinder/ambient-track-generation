@@ -74,7 +74,33 @@ Update `configuration.json` with your [ComfyUI](https://www.comfy.org/) server d
 }
 ```
 
-### 4. Run the Pipeline
+### 4. Configure Authentication
+
+Create `authentication.json` in the project root with your Suno credentials:
+
+```json
+{
+  "suno": {
+    "session": "your-__session-cookie",
+    "client_uat": "your-__client_uat-cookie",
+    "client": "your-__client-cookie"
+  }
+}
+```
+
+**Getting Cookies from Browser:**
+1. Go to [suno.com](https://suno.com) and log in
+2. Open DevTools (F12) → Network tab
+3. Find any request to `clerk.suno.com` or `studio-api.prod.suno.com`
+4. Copy the cookie values:
+   - `__session` (long JWT string)
+   - `__client_uat` (timestamp number)
+   - `__client` (JWT string)
+5. Paste into `authentication.json`
+
+**Note:** Cookies refresh automatically during generation, but if you see authentication errors, grab fresh cookies from the browser.
+
+### 5. Run the Pipeline
 
 ```bash
 # Run all pipeline steps

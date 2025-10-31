@@ -8,6 +8,40 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PYTHON_BIN="$SCRIPT_DIR/src/modules/generation_runner/venv/bin/python"
 RUNNER_SCRIPT="$SCRIPT_DIR/src/modules/generation_runner/main.py"
 LOG_FILE="$SCRIPT_DIR/pipeline.log"
+OUTPUT_DIR="$SCRIPT_DIR/output"
+
+# Flags
+CLEAN_UP=false
+STEPS_ARG="all"
+
+# Help
+for arg in "$@"; do
+    if [[ "$arg" == "-h" || "$arg" == "--help" ]]; then
+        echo "Usage: $(basename "$0") [--steps STEPS] [--clean-up]"
+        echo "  --steps      Steps to execute (default: all)"
+        echo "  --clean-up   Delete the root output directory after a successful run"
+        exit 0
+    fi
+done
+
+# Parse flags
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --steps)
+            STEPS_ARG="$2"
+            shift 2
+            ;;
+        --clean-up)
+            CLEAN_UP=true
+            shift
+            ;;
+        *)
+            echo "ERROR: Unknown argument: $1"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
 
 # Validate required files exist
 if [[ ! -f "$PYTHON_BIN" ]]; then
@@ -37,7 +71,22 @@ fi
 
 # Change to project root directory and execute the runner
 cd "$SCRIPT_DIR"
-"$PYTHON_BIN" "$RUNNER_SCRIPT" --step all --log-file "$LOG_FILE" || exit 1
+"$PYTHON_BIN" "$RUNNER_SCRIPT" --step "$STEPS_ARG" --log-file "$LOG_FILE" || true
+RUN_STATUS=$?
+
+# Conditional cleanup (only on success if requested)
+if [[ $RUN_STATUS -eq 0 && "$CLEAN_UP" == "true" ]]; then
+    echo "Cleanup requested: deleting output directory at $OUTPUT_DIR"
+    if [[ -n "$OUTPUT_DIR" && "$OUTPUT_DIR" == "$SCRIPT_DIR/output" && -d "$OUTPUT_DIR" ]]; then
+        rm -rf "$OUTPUT_DIR" || exit 1
+        echo "Output directory deleted: $OUTPUT_DIR"
+    else
+        echo "Skip cleanup: invalid or missing output directory ($OUTPUT_DIR)"
+    fi
+else
+    echo "Skipping cleanup (status: $RUN_STATUS, requested: $CLEAN_UP)"
+fi
 
 echo ""
 echo "Pipeline generation complete. Log: $LOG_FILE"
+exit "$RUN_STATUS"

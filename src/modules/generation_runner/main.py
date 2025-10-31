@@ -122,7 +122,7 @@ def execute_module(module_name: str, step_name: str, log_file_path: Path, logger
         if return_code != 0:
             raise RuntimeError(f"Module {module_name} failed with exit code {return_code}")
 
-        logger.info(f"Module {module_name} completed successfully")
+        logger.debug(f"Module {module_name} completed successfully")
 
     except subprocess.SubprocessError as exc:
         raise RuntimeError(f"Failed to execute module {module_name}: {exc}") from exc
@@ -136,18 +136,18 @@ def main() -> None:
         RunnerArgumentParser
     )
 
-    # Setup logging
-    logger = EnhancedLogger.setup_pipeline_logging(
-        log_file=args.log_file,
-        debug=False,  # Could be made configurable
-        script_name="runner"
-    )
-
     try:
-        # Load configuration
+        # Load configuration first to get debug setting
         config_path = Project.get_configuration()
         config_loader = load_configuration(config_path)
         config_data = config_loader.data
+
+        # Setup logging with debug setting from config
+        logger = EnhancedLogger.setup_pipeline_logging(
+            log_file=args.log_file,
+            debug=config_data.debug or False,
+            script_name="runner"
+        )
 
         logger.info(f"Loaded configuration: {config_data.name}")
 

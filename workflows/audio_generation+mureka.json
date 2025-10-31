@@ -1,0 +1,52 @@
+{
+  "1": {
+    "inputs": {
+      "api_key": "<Mureka API Key>"
+    },
+    "class_type": "Mureka API Key",
+    "_meta": {
+      "title": "Mureka API Key"
+    }
+  },
+  "2": {
+    "inputs": {
+      "model": "auto",
+      "instrumental": [
+        "4",
+        0
+      ],
+      "api_key": [
+        "1",
+        0
+      ]
+    },
+    "class_type": "Mureka Instrumental",
+    "_meta": {
+      "title": "Mureka Instrumental"
+    }
+  },
+  "3": {
+    "inputs": {
+      "filename_prefix": "audio/ComfyUI",
+      "file_format": "mp3",
+      "result": [
+        "2",
+        0
+      ]
+    },
+    "class_type": "Mureka Save",
+    "_meta": {
+      "title": "Mureka Save"
+    }
+  },
+  "4": {
+    "inputs": {
+      "instrumental": "",
+      "lyrics": ""
+    },
+    "class_type": "Mureka Text Prompt",
+    "_meta": {
+      "title": "Mureka Text Prompt"
+    }
+  }
+}

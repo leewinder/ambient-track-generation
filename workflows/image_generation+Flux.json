@@ -41,14 +41,14 @@
   },
   "31": {
     "inputs": {
-      "seed": 1,
+      "seed": 333372501211826,
       "steps": 25,
-      "cfg": 0.8,
+      "cfg": 1,
       "sampler_name": "euler",
       "scheduler": "simple",
       "denoise": 1,
       "model": [
-        "62",
+        "66",
         0
       ],
       "positive": [
@@ -71,7 +71,7 @@
   },
   "38": {
     "inputs": {
-      "unet_name": "Lyh Anime Flux v4 niji.safetensors",
+      "unet_name": "Flux1 Dev.safetensors",
       "weight_dtype": "default"
     },
     "class_type": "UNETLoader",
@@ -102,11 +102,11 @@
   },
   "41": {
     "inputs": {
-      "clip_l": "masterpiece, best quality, ultra-detailed, a lone figure in a vibrant red cloak on a misty shoreline, a colossal ruined mech half-submerged in the water, giant abandoned mech, weathered, corroded, battle-damaged, low angle shot, \n\nIn the style of ff-td,\n\ncinematic concept art, ethereal atmosphere, dramatic volumetric lighting, high contrast, muted color palette with a single pop of red, sense of epic scale, dense fog, shallow depth of field, award-winning digital painting, trending on ArtStation, smooth, detailed, shading.\n",
-      "t5xxl": "A wide nighttime view of a futuristic city of glass spires and suspended platforms, glowing teal light reflecting off polished surfaces. Small human figures move beneath floating skybridges while holographic signage illuminates the empty streets. The city appears silent and pristine under a starry sky.  In the style of ff-td. The image is an award-winning digital painting, the texture is smooth with visible lines and shading, giving it a detailed yet stylised presentation that would trend on ArtStation. The overall mood should be ethereal and atmospheric, defined by dramatic, high-contrast volumetric lighting.  The composition must evoke a sense of epic scale. Render the scene with a muted and desaturated color palette, but use vibrant emissive highlights to create key focal points. Finish the image with a shallow depth of field for a truly cinematic and professional feel.",
+      "clip_l": "cyberpunk, anime, global illumination, balcony overlooking city, cyberpunk city, futuristic city, dusk sky, neon lights, gentle rain, solitary figure, calm mood, reflective atmosphere",
+      "t5xxl": "In the style of cyberpunk anime with beautiful global illumination. A calm evening scene overlooking a futuristic cyberpunk city at dusk. A single figure stands on a small apartment balcony, leaning against the railing, quietly watching the distant neon lights shimmer through gentle rain. Soft reflections ripple across nearby rooftop glass surfaces. The atmosphere feels warm, peaceful, and introspective. The lighting is low and ambient, with a subtle purple and blue gradient in the sky, city lights glowing softly below. The mood is quiet calm and personal reflection.",
       "guidance": 3.5,
       "clip": [
-        "62",
+        "66",
         1
       ]
     },
@@ -127,33 +127,11 @@
       "title": "ConditioningZeroOut"
     }
   },
-  "59": {
+  "64": {
     "inputs": {
-      "lora_name": "Flux D - Anime Art Variant 1.safetensors",
-      "strength_model": 1.2,
-      "strength_clip": 1.2
-    },
-    "class_type": "LoraLoader",
-    "_meta": {
-      "title": "Load LoRA"
-    }
-  },
-  "61": {
-    "inputs": {
-      "lora_name": "Flux D - Daubrez Painterly Style.safetensors",
-      "strength_model": 0.35,
-      "strength_clip": 0.2
-    },
-    "class_type": "LoraLoader",
-    "_meta": {
-      "title": "Load LoRA"
-    }
-  },
-  "62": {
-    "inputs": {
-      "lora_name": "Flux D - Watercolor painting.safetensors",
-      "strength_model": 0.5,
-      "strength_clip": 0.5,
+      "lora_name": "Cyberpunk Anime Style.safetensors",
+      "strength_model": 1,
+      "strength_clip": 1,
       "model": [
         "38",
         0
@@ -168,11 +146,19 @@
       "title": "Load LoRA"
     }
   },
-  "63": {
+  "66": {
     "inputs": {
-      "lora_name": "Flux D - FANCHA style v5.safetensors",
-      "strength_model": 1,
-      "strength_clip": 0.3
+      "lora_name": "Global Illumination FLUX.safetensors",
+      "strength_model": 0.35,
+      "strength_clip": 0.35,
+      "model": [
+        "64",
+        0
+      ],
+      "clip": [
+        "64",
+        1
+      ]
     },
     "class_type": "LoraLoader",
     "_meta": {

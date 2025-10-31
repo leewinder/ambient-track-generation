@@ -1,0 +1,84 @@
+{
+  "steps": "all",
+
+  "global": {
+    ".generation.seed": 13
+  },
+
+  "runs": [
+    {
+      ".name": "Relaxation - Ambient Synthwave for Calm",
+      ".steps.image_generation.prompts": [
+        "A female figure wearing over-ear headphones lounges in a cozy futuristic apartment, seated by a large window revealing a vast star field with distant planets and glowing nebulae. Soft ambient lighting reflects on metallic surfaces and floating digital panels. The atmosphere is serene and contemplative, evoking deep calm and gentle introspection in the quiet of space.",
+        "futuristic apartment, large window, star field, distant planets, nebula, ambient lighting, metallic surfaces, floating digital panels, figure wearing headphones, calm, contemplative, serene mood"
+      ],
+      ".steps.image_expansion.prompts": [
+        "A female figure wearing over-ear headphones lounges in a cozy futuristic apartment, seated by a large window revealing a vast star field with distant planets and glowing nebulae. Soft ambient lighting reflects on metallic surfaces and floating digital panels. The atmosphere is serene and contemplative, evoking deep calm and gentle introspection in the quiet of space.",
+        "futuristic apartment, large window, star field, distant planets, nebula, ambient lighting, metallic surfaces, floating digital panels, figure wearing headphones, calm, contemplative, serene mood"
+      ],
+      ".steps.audio_generation.prompts": [
+        "Ambient synthwave. Warm evolving pads, soft sub-bass, gentle pulses, very soft slow electronic pulse. Calm, reflective, spacious, weightless atmosphere."
+      ]
+    },
+    {
+      ".name": "Studying and Coding - Lo-Fi Ambient Beats",
+      ".steps.image_generation.prompts": [
+        "A lone figure wearing over-ear headphones sits at a holographic terminal in a quiet futuristic library, soft neon lights illuminating shelves filled with books and digital archives. Through tall windows, the distant city skyline glows with neon accents. The mood is focused and tranquil, evoking deep concentration and quiet productivity.",
+        "futuristic library, neon lights, holographic terminal, shelves of books and data, city skyline, figure wearing headphones, focused, tranquil, productivity mood"
+      ],
+      ".steps.image_expansion.prompts": [
+        "A lone figure wearing over-ear headphones sits at a holographic terminal in a quiet futuristic library, soft neon lights illuminating shelves filled with books and digital archives. Through tall windows, the distant city skyline glows with neon accents. The mood is focused and tranquil, evoking deep concentration and quiet productivity.",
+        "futuristic library, neon lights, holographic terminal, shelves of books and data, city skyline, figure wearing headphones, focused, tranquil, productivity mood"
+      ],
+      ".steps.audio_generation.prompts": [
+        "Ambient synthwave. Warm evolving pads, soft sub-bass, gentle pulses, steady gentle electronic beat. Focused, introspective, calm, unobtrusive rhythm to aid concentration."
+      ]
+    },
+    {
+      ".name": "Contemplation - Space & Silence Soundscapes",
+      ".steps.image_generation.prompts": [
+        "A small spacecraft drifts silently above a massive nebula, with a planet and its moon in the distance. Stars scatter across the dark void, and faint auroras glow along planetary rings. The scene evokes quiet wonder, isolation, and deep contemplation, highlighting the infinite scale of space.",
+        "spacecraft, nebula, planet, moon, stars, planetary rings, aurora, vast scale, isolation, contemplative, quiet wonder"
+      ],
+      ".steps.image_expansion.prompts": [
+        "A small spacecraft drifts silently above a massive nebula, with a planet and its moon in the distance. Stars scatter across the dark void, and faint auroras glow along planetary rings. The scene evokes quiet wonder, isolation, and deep contemplation, highlighting the infinite scale of space.",
+        "spacecraft, nebula, planet, moon, stars, planetary rings, aurora, vast scale, isolation, contemplative, quiet wonder"
+      ],
+      ".steps.audio_generation.prompts": [
+        "Ambient synthwave. Warm evolving pads, soft sub-bass, gentle pulses, mostly beatless. Deep, spacious, meditative, awe-inspiring atmosphere."
+      ]
+    },
+    {
+      ".name": "Motivation - Uplifting Ambient Synthwave",
+      ".steps.image_generation.prompts": [
+        "A sleek vehicle speeds along a glowing neon highway cutting through futuristic mountains at dawn, city lights twinkling in the distance. Hovering signs and energy lines illuminate the road, reflecting on polished surfaces. The scene feels dynamic, aspirational, and full of momentum, evoking excitement and forward motion.",
+        "futuristic highway, neon lights, dawn, mountains, sleek vehicle, city skyline, hovering signs, energy lines, dynamic, aspirational, momentum, excitement"
+      ],
+      ".steps.image_expansion.prompts": [
+        "A sleek vehicle speeds along a glowing neon highway cutting through futuristic mountains at dawn, city lights twinkling in the distance. Hovering signs and energy lines illuminate the road, reflecting on polished surfaces. The scene feels dynamic, aspirational, and full of momentum, evoking excitement and forward motion.",
+        "futuristic highway, neon lights, dawn, mountains, sleek vehicle, city skyline, hovering signs, energy lines, dynamic, aspirational, momentum, excitement"
+      ],
+      ".steps.audio_generation.prompts": [
+        "Ambient synthwave. Bright evolving pads, punchy sub-bass, driving arpeggios, energetic smooth electronic rhythm. Uplifting, motivating, full of momentum and forward motion, inspiring action and excitement."
+      ]
+    }
+  ],
+
+  "modifications": {
+    "prompts": [
+      {
+        "steps": ["image_generation", "image_expansion"],
+        "modifiers": [
+          "In the style of cyberpunk anime with beautiful global illumination.  ",
+          "cyberpunk, anime, global illumination, "
+        ],
+        "append": false
+      },
+      {
+        "steps": ["audio_generation"],
+        "modifiers": ["."],
+        "append": true
+      }
+    ]
+  }
+}

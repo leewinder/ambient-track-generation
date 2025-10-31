@@ -19,6 +19,11 @@ from .comfyui import (
     ComfyUIOutput
 )
 
+# Import and expose network utilities
+from .network import (
+    NetworkRetry
+)
+
 __all__ = [
     'ConfigurationModel',
     'ConfigurationLoader',
@@ -28,5 +33,6 @@ __all__ = [
     'Step',
     'ComfyUIServer',
     'ComfyUIWorkflow',
-    'ComfyUIOutput'
+    'ComfyUIOutput',
+    'NetworkRetry'
 ]

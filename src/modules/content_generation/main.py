@@ -12,14 +12,16 @@ from pipeline_utilities.configuration import load_configuration
 from pipeline_utilities.logs import EnhancedLogger
 from pipeline_utilities.paths import Paths, Project
 from pipeline_utilities.comfyui import ComfyUIServer, ComfyUIWorkflow, ComfyUIOutput
+from pipeline_utilities.authentication import load_authentication
 
 
 class ContentGenerator:
     """ Main content generation orchestrator """
 
-    def __init__(self, logger: EnhancedLogger):
+    def __init__(self, logger: EnhancedLogger, auth_data: Any = None):
         """ Initialize the content generator """
         self.logger = logger
+        self.auth_data = auth_data
 
     def load_workflow_file(self, workflow_name: str) -> Dict[str, Any]:
         """ Load workflow JSON file """
@@ -51,7 +53,7 @@ class ContentGenerator:
         config_data.generation.seed = modified_seed
 
         if seed_offset > 0:
-            self.logger.info(
+            self.logger.debug(
                 f"Using modified seed: {modified_seed} (original: {original_seed}, offset: +{seed_offset})")
 
         try:
@@ -83,21 +85,22 @@ class ContentGenerator:
                     workflow_data,
                     workflow_config.modifiers,
                     step_config,
-                    config_data
+                    config_data,
+                    self.auth_data
                 )
 
                 # Log modifications made
                 if modifications:
-                    self.logger.info("Applied modifiers to workflow:")
+                    self.logger.info(f"Applied {len(modifications)} modifier(s) to workflow")
                     for mod in modifications:
                         if mod['input_field'] == 'value':
-                            self.logger.info(f"  {mod['node_name']}: {mod['new_value']}")
+                            self.logger.debug(f"  {mod['node_name']}: {mod['new_value']}")
                         else:
-                            self.logger.info(f"  {mod['node_name']} ({mod['input_field']}): {mod['new_value']}")
+                            self.logger.debug(f"  {mod['node_name']} ({mod['input_field']}): {mod['new_value']}")
                 else:
-                    self.logger.info("No modifiers were applied to workflow")
+                    self.logger.debug("No modifiers were applied to workflow")
             else:
-                self.logger.info("No modifiers defined for workflow")
+                self.logger.debug("No modifiers defined for workflow")
 
             # Wait for server availability
             server.wait_until_available()
@@ -161,7 +164,7 @@ class ContentGenerator:
                 suffix = output_path.suffix
                 modified_filename = f"{stem}_pass_{pass_num:03d}{suffix}"
 
-                self.logger.info(f"Output filename: {modified_filename}")
+                self.logger.debug(f"Output filename: {modified_filename}")
 
                 # Calculate seed offset (pass 1 = +0, pass 2 = +1, pass 3 = +2, etc.)
                 seed_offset = pass_num - 1
@@ -188,23 +191,35 @@ def main() -> None:
     # Parse arguments
     args = parse_arguments("Content generation module for ComfyUI workflows")
 
-    # Setup logging
-    logger = EnhancedLogger.setup_pipeline_logging(
-        log_file=args.log_file,
-        debug=False,  # Could be made configurable
-        script_name="content_generation"
-    )
-
     try:
-        # Load configuration
+        # Load configuration first to get debug setting
         config_path = Project.get_configuration()
         config_loader = load_configuration(config_path)
         config_data = config_loader.data
 
+        # Setup logging with debug setting from config
+        logger = EnhancedLogger.setup_pipeline_logging(
+            log_file=args.log_file,
+            debug=config_data.debug or False,
+            script_name="content_generation"
+        )
+
         logger.info(f"Loaded configuration: {config_data.name}")
 
+        # Load authentication data (if available)
+        auth_data = None
+        try:
+            auth_path = Project.get_root_path("authentication.json")
+            auth_loader = load_authentication(auth_path)
+            auth_data = auth_loader.data
+            logger.info("Loaded authentication data")
+        except FileNotFoundError:
+            logger.info("No authentication.json found - authentication placeholders will not be available")
+        except ValueError as exc:
+            logger.warning(f"Failed to load authentication data: {exc}")
+
         # Initialize content generator
-        generator = ContentGenerator(logger)
+        generator = ContentGenerator(logger, auth_data)
 
         # Execute the step
         generator.execute_step(args.step, config_data)

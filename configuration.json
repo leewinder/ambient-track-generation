@@ -1,11 +1,11 @@
 {
-  "name": "A Future",
+  "name": "Motivation - Uplifting Ambient Synthwave",
   "debug": true,
   "generation": {
-    "seed": 93
+    "seed": 13
   },
   "video": {
-    "length": 60
+    "length": 15
   },
   "comfyui": {
     "server": "http://kingdom.local:8188/",
@@ -21,7 +21,7 @@
         "KSampler::seed": "<seed>",
         "KSampler::cfg": 0.8,
         "KSampler::steps": 25,
-        "Load Diffusion Model::unet_name": "Lyh Anime Flux v4 niji.safetensors"
+        "Load Diffusion Model::unet_name": "Flux1 Dev.safetensors"
       }
     },
     "image_expansion+flux": {
@@ -47,22 +47,36 @@
       "modifiers": {
         "TextEncodeAceStepAudio::tags": "<prompts[0]>",
         "TextEncodeAceStepAudio::lyrics": "<prompts[1]>",
-        "EmptyAceStepLatentAudio::seconds": 60,
+        "EmptyAceStepLatentAudio::seconds": 180,
         "KSampler::seed": "<seed>",
         "KSampler::cfg": 5.0,
         "KSampler::steps": 50
       }
+    },
+    "audio_generation+mureka": {
+      "modifiers": {
+        "Mureka API Key::api_key": "<authentication::mureka>",
+        "Mureka Text Prompt::instrumental": "<prompts[0]>"
+      }
     }
   },
   "steps": {
+    "audio_generation": {
+      "passes": 3,
+      "module": "suno_audio",
+      "output": "04_audio.mp3",
+      "prompts": [
+        "Ambient synthwave. Bright evolving pads, punchy sub-bass, driving arpeggios, energetic smooth electronic rhythm. Uplifting, motivating, full of momentum and forward motion, inspiring action and excitement.."
+      ]
+    },
     "image_generation": {
       "module": "content_generation",
       "workflow": "image_generation+flux",
       "input": null,
       "output": "01_initial_image.png",
       "prompts": [
-        "Low-angle view of a sleek, futuristic hovercar (spinner) flying past colossal neon skyscrapers at dawn. Dynamic lines, soft volumetric clouds.  A highly detailed anime background illustration, rendered with volumetric lighting, atmospheric haze, and clean lines, capturing the style of Makoto Shinkai with a vibrant cinematic palette.",
-        "synthwave city, high energy, futuristic hovercar, dynamic view, vibrant neon, towering skyscrapers, anime background, neon reflections, volumetric fog, Makoto Shinkai style"
+        "In the style of cyberpunk anime with beautiful global illumination.  A sleek vehicle speeds along a glowing neon highway cutting through futuristic mountains at dawn, city lights twinkling in the distance. Hovering signs and energy lines illuminate the road, reflecting on polished surfaces. The scene feels dynamic, aspirational, and full of momentum, evoking excitement and forward motion.",
+        "cyberpunk, anime, global illumination, futuristic highway, neon lights, dawn, mountains, sleek vehicle, city skyline, hovering signs, energy lines, dynamic, aspirational, momentum, excitement"
       ]
     },
     "image_expansion": {
@@ -71,8 +85,8 @@
       "input": "01_initial_image.png",
       "output": "02_expanded_image.png",
       "prompts": [
-        "Low-angle view of a sleek, futuristic hovercar (spinner) flying past colossal neon skyscrapers at dawn. Dynamic lines, soft volumetric clouds.  A highly detailed anime background illustration, rendered with volumetric lighting, atmospheric haze, and clean lines, capturing the style of Makoto Shinkai with a vibrant cinematic palette.",
-        "synthwave city, high energy, futuristic hovercar, dynamic view, vibrant neon, towering skyscrapers, anime background, neon reflections, volumetric fog, Makoto Shinkai style"
+        "In the style of cyberpunk anime with beautiful global illumination.  A sleek vehicle speeds along a glowing neon highway cutting through futuristic mountains at dawn, city lights twinkling in the distance. Hovering signs and energy lines illuminate the road, reflecting on polished surfaces. The scene feels dynamic, aspirational, and full of momentum, evoking excitement and forward motion.",
+        "cyberpunk, anime, global illumination, futuristic highway, neon lights, dawn, mountains, sleek vehicle, city skyline, hovering signs, energy lines, dynamic, aspirational, momentum, excitement"
       ]
     },
     "image_upscale_x2": {
@@ -87,24 +101,26 @@
       "input": "03_expanded_image_x2.png",
       "output": "03_expanded_image_x4.png"
     },
-    "audio_generation": {
-      "passes": 3,
-      "prompts": [
-        "driving arpeggios, progressive melody, 60-70 BPM, motivational mood, bright synth leads, subtle guitar sample, lo-fi beats, warm analog synth, synthwave rhythm, 80s drum machine, tape hiss, sub bass pulse, no vocals",
-        "[instrumental]"
-      ],
-      "module": "content_generation",
-      "workflow": "audio_generation+ace-step",
-      "output": "04_audio.mp3"
-    },
     "audio_stitching": {
       "module": "audio_stitcher",
       "stitch_fade": 5,
-      "intro_fade": 30,
-      "outro_fade": 5,
+      "intro_fade": 10,
+      "outro_fade": 10,
       "normalisation": 0.1,
       "input": "04_audio.mp3",
       "output": "05_full_audio.mp3"
+    },
+    "video_construction": {
+      "module": "video_construction",
+      "image": "03_expanded_image_x2.png",
+      "audio": "05_full_audio.mp3",
+      "output": "06_final_video.mp4"
+    },
+    "archive_video": {
+      "module": "archive_video",
+      "audio": "_pass_\\d{3}\\.(?:mp3|json)$",
+      "artwork": "^03_expanded_image.*\\.png$",
+      "video": "06_final_video.mp4"
     }
   }
 }

@@ -2,7 +2,7 @@
 """ Pydantic models for configuration validation """
 
 import time
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import Field, HttpUrl, field_validator, model_validator
 
@@ -16,6 +16,9 @@ __all__ = [
     'Workflow',
     'Step',
     'AudioStitcherStep',
+    'VideoConstructionStep',
+    'ArchiveVideoStep',
+    'SunoAudioStep',
     'ConfigurationModel',
     'ConfigurationLoader',
     'load_configuration'
@@ -137,6 +140,76 @@ class AudioStitcherStep(StrictBaseModel):
     )
 
 
+class VideoConstructionStep(StrictBaseModel):
+    """ Video construction step configuration """
+    module: str = Field(
+        description="Module name for the step",
+        min_length=1
+    )
+    image: str = Field(
+        description="Image filename for video construction",
+        min_length=1
+    )
+    audio: str = Field(
+        description="Audio filename for video construction",
+        min_length=1
+    )
+    output: str = Field(
+        description="Output video filename",
+        min_length=1
+    )
+
+
+class ArchiveVideoStep(StrictBaseModel):
+    """ Archive video step configuration """
+    module: str = Field(
+        description="Module name for the step",
+        min_length=1
+    )
+    audio: str = Field(
+        description="Regex pattern for matching audio files",
+        min_length=1
+    )
+    artwork: str = Field(
+        description="Regex pattern for matching artwork files",
+        min_length=1
+    )
+    video: str = Field(
+        description="Video filename to archive",
+        min_length=1
+    )
+
+
+class SunoAudioStep(StrictBaseModel):
+    """ Suno audio generation step configuration """
+    module: str = Field(
+        description="Module name for the step",
+        min_length=1
+    )
+    output: str = Field(
+        description="Output for the step",
+        min_length=1
+    )
+    prompts: List[str] = Field(
+        description="Prompts for the step",
+        min_length=1
+    )
+    passes: Optional[int] = Field(
+        default=None,
+        description="Number of passes to execute (if present, outputs will be numbered)",
+        gt=0
+    )
+
+    @field_validator('prompts')
+    @classmethod
+    def validate_prompts(cls, v: List[str]) -> List[str]:
+        """ Ensure no empty strings in prompts list """
+        for prompt in v:
+            if not prompt or prompt.strip() == "":
+                raise ValueError("Prompts cannot contain empty strings")
+        return v
+
+
 class ConfigurationModel(StrictBaseModel):
     """ Root configuration model """
     name: str = Field(
@@ -163,17 +236,75 @@ class ConfigurationModel(StrictBaseModel):
         description="Dictionary of workflows keyed by name",
         min_length=1
     )
-    steps: Dict[str, Union[Step, AudioStitcherStep]] = Field(
+    steps: Dict[str, Any] = Field(
         description="Dictionary of steps keyed by step name",
         min_length=1
     )
 
+    @field_validator('steps')
+    @classmethod
+    def validate_steps(cls, steps: Dict[str, Any]) -> Dict[str, Any]:
+        """ Validate and convert step data to appropriate step types """
+        validated_steps = {}
+        for step_name, step_data in steps.items():
+            if isinstance(step_data, dict) and 'module' in step_data:
+                module = step_data['module']
+                if module == 'audio_stitcher':
+                    # Validate AudioStitcherStep fields
+                    required_fields = ['stitch_fade', 'intro_fade', 'outro_fade', 'normalisation']
+                    for field in required_fields:
+                        if field not in step_data:
+                            raise ValueError(
+                                f"Step '{step_name}' missing required field '{field}' for audio_stitcher module")
+                    # Convert to AudioStitcherStep
+                    validated_steps[step_name] = AudioStitcherStep(**step_data)
+                elif module == 'video_construction':
+                    # Validate VideoConstructionStep fields
+                    required_fields = ['image', 'audio']
+                    for field in required_fields:
+                        if field not in step_data:
+                            raise ValueError(
+                                f"Step '{step_name}' missing required field '{field}' for video_construction module")
+                    # Convert to VideoConstructionStep
+                    validated_steps[step_name] = VideoConstructionStep(**step_data)
+                elif module == 'archive_video':
+                    # Validate ArchiveVideoStep fields
+                    required_fields = ['audio', 'artwork', 'video']
+                    for field in required_fields:
+                        if field not in step_data:
+                            raise ValueError(
+                                f"Step '{step_name}' missing required field '{field}' for archive_video module")
+                    # Convert to ArchiveVideoStep
+                    validated_steps[step_name] = ArchiveVideoStep(**step_data)
+                elif module == 'suno_audio':
+                    # Validate SunoAudioStep fields
+                    required_fields = ['output', 'prompts']
+                    for field in required_fields:
+                        if field not in step_data:
+                            raise ValueError(
+                                f"Step '{step_name}' missing required field '{field}' for suno_audio module")
+                    # Convert to SunoAudioStep
+                    validated_steps[step_name] = SunoAudioStep(**step_data)
+                else:
+                    # Regular Step - validate workflow reference
+                    if 'workflow' in step_data:
+                        # We'll validate workflow references in the model validator
+                        pass
+                    # Convert to Step
+                    validated_steps[step_name] = Step(**step_data)
+            else:
+                validated_steps[step_name] = step_data
+        return validated_steps
+
     @model_validator(mode='after')
     def validate_workflow_references(self) -> 'ConfigurationModel':
         """ Validate that step workflows reference existing workflow names """
-        for step_name, step in self.steps.items():
-            # Only validate workflow references for regular Step objects
-            if isinstance(step, Step) and step.workflow not in self.workflows:
+        steps = getattr(self, 'steps', {})
+        workflows = getattr(self, 'workflows', {})
+
+        for step_name, step in steps.items():
+            # Only validate workflow references for regular Step objects (skip special modules)
+            if isinstance(step, Step) and hasattr(workflows, 'keys') and step.workflow not in list(workflows.keys()):
                 raise ValueError(f"Step '{step_name}' references unknown workflow '{step.workflow}'")
 
         return self
@@ -181,13 +312,16 @@ class ConfigurationModel(StrictBaseModel):
     @model_validator(mode='after')
     def validate_prompt_counts(self) -> 'ConfigurationModel':
         """ Validate that step prompts count matches workflow modifiers prompt references """
+        steps = getattr(self, 'steps', {})
+        workflows = getattr(self, 'workflows', {})
+
         # Validate each step
-        for step_name, step in self.steps.items():
+        for step_name, step in steps.items():
             # Only validate prompt counts for regular Step objects
             if not isinstance(step, Step):
                 continue
 
-            workflow = self.workflows.get(step.workflow)
+            workflow = workflows.get(step.workflow)
             if workflow and workflow.modifiers:
                 # Find highest prompt index referenced in modifiers
                 max_prompt_index = -1

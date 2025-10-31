@@ -9,11 +9,13 @@ alwaysApply: true
     - The version used is specified in .python-version
     - Pyenv is used for all Python environment management
 
-- Use type hints consistently across all types and function returns
-- Use lazy formatting for all strings where possible
-- Avoid unnecessary else statements; use the if-return pattern instead
-- Avoid hard-coded values, pull out fixed values to the top of the file as scoped final variables
-- Never use local imports, always import them at the top of the file
+- Coding style
+    - Always scope methods, variables, globals etc. into classes to avoid free functions
+    - Use type hints consistently across all types and function returns
+    - Use lazy formatting for all strings where possible
+    - Avoid unnecessary else statements; use the if-return pattern instead
+    - Avoid hard-coded values, pull out fixed values to the top of the file as scoped final variables
+    - Never use local imports, always import them at the top of the file
 
 - For shared libraries
     - Ensure you indicate public and non-public methods using _ at the start of method names
